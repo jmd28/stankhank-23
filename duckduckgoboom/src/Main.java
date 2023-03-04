@@ -47,7 +47,7 @@ public class Main extends PApplet {
     ArrayList<PImage> images = new ArrayList<>();
     ArrayList<ArrayList<String>> collisions = new ArrayList<>();
 
-
+    int counter = 0;
     Random rand = new Random();
 
     Yolo yolo = new Yolo();
@@ -173,14 +173,16 @@ public class Main extends PApplet {
             images.add(get());
             writeData();
             last_check = System.currentTimeMillis();
-            System.out.println(images.size() + " " + collisions.size());
+            System.out.println(counter);
         }
     }
 
     public void writeData() {
         ArrayList<String> objs = collisions.get(collisions.size()-1);
+        collisions.remove(collisions.size()-1);
         PImage img = images.get(images.size()-1);
-        int index = collisions.size();
+        images.remove(images.size()-1);
+        int index = counter++;
         try{
             BufferedWriter write = new BufferedWriter(new FileWriter("../data/" + index + ".txt"));
             for(String s : objs) {
@@ -191,7 +193,7 @@ public class Main extends PApplet {
             System.out.println(e + "error");
         }
         img.save("../data/" + index + ".jpg");
-        if(index == 500) {
+        if(index == 1500) {
             System.exit(0);
         }
     }
