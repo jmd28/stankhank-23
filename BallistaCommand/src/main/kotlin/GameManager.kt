@@ -7,6 +7,7 @@ import java.net.InetAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
 import java.util.*
+import kotlin.collections.ArrayList
 import kotlin.system.exitProcess
 
 // this runs the actual game
@@ -22,7 +23,7 @@ class GameManager(val app: App) {
     var gameObjects = mutableListOf<GameObject>()
 
     val booletPool = ObjectPool(app) {
-        Boolet(selfGenerated=true)
+        Boolet(selfGenerated = true)
     }
 
     // TODO: use
@@ -31,8 +32,10 @@ class GameManager(val app: App) {
     val bullets = mutableListOf<Boolet>()
     val otherPlayers = mutableListOf<Player>()
 
-    val TIME_BETWEEN_PACKET_UPDATE = 1
+    val TIME_BETWEEN_PACKET_UPDATE = 2
     var timeLastPacket = System.currentTimeMillis()
+
+    var bulletsToNetwork: Boolet? = null
 
     // run this at the beginning of the game
     fun setup() {
@@ -40,11 +43,11 @@ class GameManager(val app: App) {
         // set some dimensions
         this.gridSize = app.displayWidth / 9f
 
-       // // create some players
-       // repeat(5) {
-       //     val pos = PVector(app.random(1f), app.random(1f)).mult(900f)
-       //     otherPlayers.add(Player(selfGenerated=true, pos = PVector(pos.x, terrainHeight(pos.x, pos.y), pos.y)))
-       // }
+        // // create some players
+        // repeat(5) {
+        //     val pos = PVector(app.random(1f), app.random(1f)).mult(900f)
+        //     otherPlayers.add(Player(selfGenerated=true, pos = PVector(pos.x, terrainHeight(pos.x, pos.y), pos.y)))
+        // }
 
         app.textFont(app.createFont("Courier 10 Pitch", 28f))
 
@@ -75,32 +78,35 @@ class GameManager(val app: App) {
 //        score += waves.scoreMultiplier()*points
     }
 
-    var collisions: List<List<UUID>> = listOf()
+    var collisions: MutableList<List<UUID>> = mutableListOf()
 
     // check for and handle any collisions
     private fun handleCollisions() {
-         collisions.forEach { ids ->
-             // handle each ent in here
-             val isDeath = ids.any { val obj = uuidToObject[it]; obj is Boolet }
+        collisions.forEach { ids ->
+            // handle each ent in here
+            val isDeath = ids.any { val obj = uuidToObject[it]; obj is Boolet }
 
-             if (isDeath) {
-                 ids.forEach {
-                     val obj = uuidToObject[it];
-                     when (obj) {
-                          is Boolet -> {
-                              bullets.remove(obj)
-                              booletPool.returnObject(obj)
-                          }
-                         is Player -> {
-                             obj.lives--
-                             if (obj.lives == 0) {
-                                 otherPlayers.remove(obj)
-                                 if (obj == player) exitProcess(0)
-                             }
-                         }
-                     }
-                 }
-             }
+            if (isDeath) {
+                println("isDeath happpppened")
+                ids.forEach {
+                    val obj = uuidToObject[it];
+                    when (obj) {
+                        is Boolet -> {
+                            bullets.remove(obj)
+                            booletPool.returnObject(obj)
+                        }
+
+                        is Player -> {
+                            println("oof ouch owie player")
+                            obj.lives--
+                            if (obj.lives == 0) {
+                                otherPlayers.remove(obj)
+                                if (obj == player) exitProcess(0)
+                            }
+                        }
+                    }
+                }
+            }
 //             it.forEach { id ->
 //                 val obj = uuidToObject[id]
 //                 if (obj is Player) {
@@ -110,7 +116,8 @@ class GameManager(val app: App) {
 //                     println("a boolet")
 //                 }
 //             }
-         }
+        }
+        collisions.clear()
     }
 
     // the player entity
@@ -172,6 +179,7 @@ class GameManager(val app: App) {
                 }
 
                 bullets.add(boolet)
+                bulletsToNetwork = boolet
                 cooldownEndsAt = System.currentTimeMillis() + BOOLET_COOLDOWN
             }
         }
@@ -246,6 +254,13 @@ class GameManager(val app: App) {
             //        "}}}").toByteArray()
 
             // this is wack
+
+
+            var events = if (bulletsToNetwork != null)
+                "[{\"bulletSpawn\": {\"uuid\": \"${bulletsToNetwork!!.uuid}\" }}]"
+            else "[]"
+            bulletsToNetwork = null
+
             val objectData = mutableMapOf<UUID, Map<String, Float>>()
             objectData.putAll(bullets.map {
                 it.uuid to mapOf(
@@ -265,7 +280,7 @@ class GameManager(val app: App) {
             )
             val tx_json = JSONObject(
                 mapOf(
-                    "events" to JSONArray(),
+                    "events" to events,
                     "objects" to objectData
                 )
             )
@@ -279,8 +294,34 @@ class GameManager(val app: App) {
                 val rx_buffer = ByteArray(4096)
                 val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
                 app.server_udp_socket.receive(rx_packet)
-                val rx: JSONObject = JSONObject(String(rx_packet.data))
+                val rx  = JSONObject(String(rx_packet.data))
 
+                // THISSSS is for events
+                val rx_events: JSONArray = rx["events"] as JSONArray
+
+                rx_events.forEach {
+                    it as JSONObject
+
+                    if (it.keySet().contains("bullet_spawn")) {
+                        val bullet_spawn: JSONObject = it.get("bullet_spawn") as JSONObject
+                        val bullet_uuid = UUID.fromString(bullet_spawn.get("uuid").toString())
+                        val b = Boolet(
+                            false, PVector(1231f, 0f, 123f), 123f, PVector(), uuid = bullet_uuid,
+                            expiresAt = System.currentTimeMillis() + BOOLET_LIFETIME
+                        )
+                        bullets.add(b)
+                        uuidToObject[bullet_uuid] = b
+                    }
+                    if (it.keySet().contains("collision")) {
+                        // get list
+                        val collision_data: JSONArray = it.get("collision") as JSONArray
+                        collisions = collision_data.map {
+                            (it as JSONArray).map { UUID.fromString((it.toString())) }.toList()
+                        }.toMutableList()
+                    }
+                }
+
+                // THIS is for objects
                 val os: JSONObject = rx["objects"] as JSONObject
                 val iter: Iterator<String> = os.keys()
                 while (iter.hasNext()) {
@@ -318,41 +359,41 @@ class GameManager(val app: App) {
 
         with(app.gameView) {
 
-        beginDraw()
-        noStroke()
-        // draw bg
-        background(0f, 200f, 255f)
+            beginDraw()
+            noStroke()
+            // draw bg
+            background(0f, 200f, 255f)
 
-        // world stuff goes here
-        val boxSize = 30f
-        pushMatrix()
+            // world stuff goes here
+            val boxSize = 30f
+            pushMatrix()
 
-        player.pos.y = terrainHeight(player.pos.x, player.pos.z) - boxSize
-        otherPlayers.forEach { it.pos.y = terrainHeight(it.pos.x, it.pos.z) - boxSize }
+            player.pos.y = terrainHeight(player.pos.x, player.pos.z) - boxSize
+            otherPlayers.forEach { it.pos.y = terrainHeight(it.pos.x, it.pos.z) - boxSize }
 
-        val cameraPos = player.pos.copy()
-        // move up (in line with player head)
-        cameraPos.y -= 75f
-        val lookAt = PVector.add(cameraPos, player.look)
+            val cameraPos = player.pos.copy()
+            // move up (in line with player head)
+            cameraPos.y -= 75f
+            val lookAt = PVector.add(cameraPos, player.look)
 
-        camera(
-            // camera location
-            cameraPos.x, cameraPos.y, cameraPos.z,
-            // where it's pointing
-            lookAt.x, lookAt.y, lookAt.z,
-            // which way is up
-            0f, 1f, 0f
-        )
+            camera(
+                // camera location
+                cameraPos.x, cameraPos.y, cameraPos.z,
+                // where it's pointing
+                lookAt.x, lookAt.y, lookAt.z,
+                // which way is up
+                0f, 1f, 0f
+            )
 
 
-        directionalLight(200f, 200f, 200f, 0.5f, 1f, 0.2f)
-        ambientLight(55f, 55f, 55f)
+            directionalLight(200f, 200f, 200f, 0.5f, 1f, 0.2f)
+            ambientLight(55f, 55f, 55f)
 
-        fun terrainVertex(x: Int, z: Int) {
-            val x = x * 30f
-            val z = z * 30f
-            vertex(x, terrainHeight(x, z) - boxSize, z)
-        }
+            fun terrainVertex(x: Int, z: Int) {
+                val x = x * 30f
+                val z = z * 30f
+                vertex(x, terrainHeight(x, z) - boxSize, z)
+            }
 
             // draw the world as a mesh of triangles
             (0..30).forEach { i ->
@@ -454,49 +495,49 @@ class GameManager(val app: App) {
             // read initial state and set players
             while (setup) {
 
-            try {
-                val rx_buffer = ByteArray(4096)
-                val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
-                app.server_udp_socket.receive(rx_packet)
-                val rx = JSONObject(String(rx_packet.data))
+                try {
+                    val rx_buffer = ByteArray(4096)
+                    val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
+                    app.server_udp_socket.receive(rx_packet)
+                    val rx = JSONObject(String(rx_packet.data))
 
-                if (!rx.isEmpty) {
-                   setup = false
-                }
-                val os: JSONObject = rx["objects"] as JSONObject
-                val iter: Iterator<String> = os.keys()
-                while (iter.hasNext()) {
-                    val key = UUID.fromString(iter.next())
-                    val value: JSONObject = os.get(key.toString()) as JSONObject
-
-                    val x = value["x"].toString().toFloat()
-                    val y = value["y"].toString().toFloat()
-                    val rotation = value["rot"].toString().toFloat()
-
-                    if (key == app.player_uuid) {
-                        player.uuid = key
-                        player.pos.x = x
-                        player.pos.z = y
-                        player.rotation = rotation
-                    } else {
-                        // create new players
-                        val p = Player(
-                            PVector(x, 0f, y),
-                            rotation,
-                            null,
-                            key,
-                            selfGenerated = false
-                        )
-                        otherPlayers.add(p)
-                        uuidToObject[key] = p
+                    if (!rx.isEmpty) {
+                        setup = false
                     }
+                    val os: JSONObject = rx["objects"] as JSONObject
+                    val iter: Iterator<String> = os.keys()
+                    while (iter.hasNext()) {
+                        val key = UUID.fromString(iter.next())
+                        val value: JSONObject = os.get(key.toString()) as JSONObject
+
+                        val x = value["x"].toString().toFloat()
+                        val y = value["y"].toString().toFloat()
+                        val rotation = value["rot"].toString().toFloat()
+
+                        if (key == app.player_uuid) {
+                            player.uuid = key
+                            player.pos.x = x
+                            player.pos.z = y
+                            player.rotation = rotation
+                        } else {
+                            // create new players
+                            val p = Player(
+                                PVector(x, 0f, y),
+                                rotation,
+                                null,
+                                key,
+                                selfGenerated = false
+                            )
+                            otherPlayers.add(p)
+                            uuidToObject[key] = p
+                        }
+                    }
+
+                    // TODO: update other players + bullets positions
+                    // TODO: handle events (create bullets)
+
+                } catch (_: SocketTimeoutException) {
                 }
-
-                // TODO: update other players + bullets positions
-                // TODO: handle events (create bullets)
-
-            } catch (_: SocketTimeoutException) {
-            }
             }
         } else {
 

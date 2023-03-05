@@ -1,5 +1,11 @@
 ### Start Listening for Connections on known port (give room id) ###
 import random
+from flask import Flask, request, jsonify
+import cv2
+import torch
+import numpy as np
+from PIL import Image
+import io
 ### On Connection, if no room id exist, create new room and wait for 2 players ###
 
 ### on both players connect, create udp sockets and reply with their udp port to connect to ###
@@ -27,16 +33,17 @@ rooms_lock = threading.Lock()
 GAME_WIDTH = 1600
 GAME_HEIGHT = 1000
 
-PLAYER_HEIGHT = 10
-PLAYER_WIDTH = 10
+PLAYER_HEIGHT = 35
+PLAYER_WIDTH = 35
 
-BULLET_HEIGHT = 5
-BULLET_WIDTH = 5
+BULLET_HEIGHT = 20
+BULLET_WIDTH = 20
 
-CONFIDENCE_LIMIT = 0.7
+CONFIDENCE_LIMIT = 0.5
 
 COLLISION_SERVICE = 'http://localhost:5000/'
 
+model = torch.hub.load('ultralytics/yolov5', 'custom', path='new_model.pt')  # local model
 
 # each player has a tcp socket, udp port, ip address
 class Player:
@@ -229,6 +236,43 @@ def thread_new_room(room_id):
     import queue
     q_service = queue.Queue()
 
+    def newHandleCollisions(objects):
+        import cv2
+        import numpy as np
+
+        # Create a blank image
+        img = np.ones((GAME_HEIGHT, GAME_WIDTH, 3), np.uint8) * 255
+        for obj in objects.values():
+            # Define the box parameters
+            x_position = obj["x"]
+            y_position = obj["y"]
+            if obj['o_type'] == ObjectType.PLAYER.value:
+                width = PLAYER_WIDTH
+                height = PLAYER_HEIGHT
+            else:
+                width = BULLET_WIDTH
+                height = BULLET_HEIGHT
+
+            # draw in cv2
+            cv2.rectangle(img, (int(x_position), int(y_position)), (int(x_position + width), int(y_position + height)),
+                          (0, 0, 0), 2)
+
+        results = model(img, size=900)
+        data = results.pandas().xyxy[0].to_dict(orient='records')
+
+        colliding_keys = []
+        for d in data:
+            if d["confidence"] < CONFIDENCE_LIMIT:
+                continue
+            curr_box_keys = []
+            for key in objects.keys():
+                obj = objects[key]
+                if d["xmin"] <= obj["x"] and d["xmax"] >= obj["x"] + width and d["ymin"] <= obj["y"] and d["ymax"] >= \
+                        obj["y"] + height:
+                    curr_box_keys.append(key)
+            colliding_keys.append(curr_box_keys)
+
+        return colliding_keys
 
     def handleCollisions(objects, q):
         import cv2
@@ -270,7 +314,7 @@ def thread_new_room(room_id):
                 curr_box_keys = []
                 for key in objects.keys():
                     obj = objects[key]
-                    if d["xmin"] <= obj["x"] and d["xmax"] >= obj["x"]+obj["w"] and d["ymin"] <= obj["y"] and d["ymax"] >= obj["y"] + obj["h"]:
+                    if d["xmin"] <= obj["x"] and d["xmax"] >= obj["x"]+width and d["ymin"] <= obj["y"] and d["ymax"] >= obj["y"] + height:
                         curr_box_keys.append(key)
                 colliding_keys.append(curr_box_keys)
 
@@ -280,14 +324,8 @@ def thread_new_room(room_id):
         
         return
 
-
-
     while True:
         events = []
-       # if time.time_ns() > timeSinceLastCollision + 5e6:  # 5 ,ms
-       #     timeSinceLastCollision = time.time_ns()
-       #     t = threading.Thread(target=handleCollisions, args=(objects, q_service))
-       #     t.start()
 
        # try:
        #     collisions = q_service.get(block=False)
@@ -296,30 +334,45 @@ def thread_new_room(room_id):
        # if collisions is not None:
        #     # then add a collision event
        #     event = {EventTypes.COLLISION.value: collisions}
+       #     print(event)
        #     events.append(event)
+
+        # check collisions
+
+
 
         # read in packets every ms
         # every 5ms, compute and resolve collisions
         PACKET_COLLECT_DELAY_NS = 1e6
         # read in packets for like 1ms
         start_t = time.time_ns()  # ns
-        packet_data = rx_json_udp(rx_udp_socket)
-        # contains objects [], events []
-        # update objects via uuid with given objects
-        rx_os = packet_data["objects"]
-        for o_uuid in rx_os.keys():
-            objects[o_uuid] = rx_os[o_uuid]
+        # rx packets for n ms
+        while time.time_ns() < start_t + 5e6:
+            packet_data = rx_json_udp(rx_udp_socket)
+            # contains objects [], events []
+            # update objects via uuid with given objects
+            rx_os = packet_data["objects"]
+            for o_uuid in rx_os.keys():
+                objects[o_uuid] = rx_os[o_uuid]
 
-        rx_es = packet_data["events"]
-        for event in rx_es:
-            for key, value in event.items():
-                if key == EventTypes.BULLET_SPAWN:
-                    events.append(event)
-                    # need to create new object
-                    bullet_uuid = value['uuid']
-                    o = value['object']
-                    objects[bullet_uuid] = o
-                    # event will also be sent to players such that they can spawn the bullet
+            rx_es = json.loads(packet_data["events"])
+            for event in rx_es:
+                if len(event) > 0:
+                    print(event)
+                for key, value in event.items():
+                    if key == EventTypes.BULLET_SPAWN:
+                        events.append(event)
+                        # need to create new object
+                        bullet_uuid = value['uuid']
+                        o = value['object']
+                        objects[bullet_uuid] = o
+                        # event will also be sent to players such that they can spawn the bullet
+
+        # do a single collision check
+        colliding_keys = newHandleCollisions(objects)
+        if len(colliding_keys) > 0 and len(colliding_keys[0]) > 0:
+            print(colliding_keys)
+        events.append({EventTypes.COLLISION.value: colliding_keys})
 
         # send updated state to all players
         state['events'] = events
