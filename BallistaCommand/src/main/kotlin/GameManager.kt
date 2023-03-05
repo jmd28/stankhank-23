@@ -152,11 +152,11 @@ class GameManager(val app: App) {
 //        println("actio $action")
         when (action) {
             Action.LOOK_LEFT -> {
-                rotation -= 0.002f
+                rotation -= 0.001f
             }
 
             Action.LOOK_RIGHT -> {
-                rotation += 0.002f
+                rotation += 0.001f
             }
 
             // TODO: make this add a unit vector in each component, then normalise and mul by speed
@@ -176,14 +176,17 @@ class GameManager(val app: App) {
                 pos.sub(look.cross(PVector(0f, 1f, 0f)).mult(MVMT_SPEED))
             }
 
+
             Action.PEW -> {
-//                println("isOnCooldown $isOnCooldown")
                 if (isOnCooldown) return
 
-                val boolet = booletPool.getObject()
-                boolet.pos.set(PVector.add(pos, look.mult(5f)))
-                boolet.vel.set(look.mult(0.3f))
-                boolet.expiresAt = System.currentTimeMillis() + BOOLET_LIFETIME
+                val boolet = booletPool.getObject().also {
+                    it.pos.set(PVector.add(pos, look.mult(5f)))
+                    it.vel.set(look.mult(0.3f))
+                    it.expiresAt = System.currentTimeMillis() + BOOLET_LIFETIME
+                    uuidToObject[it.uuid] = it
+                }
+
                 bullets.add(boolet)
                 cooldownEndsAt = System.currentTimeMillis() + BOOLET_COOLDOWN
             }
@@ -196,12 +199,11 @@ class GameManager(val app: App) {
         val rng = app.random(1f)
 //        println(rng)
         when {
-            (rng < 0.05f) -> {
+            (rng<0.001f) -> {
                 controller.setAction(Action.LOOK_LEFT, true)
                 controller.setAction(Action.LOOK_RIGHT, false)
             }
-
-            (rng > 0.95f) -> {
+            (rng>0.999f) -> {
                 controller.setAction(Action.LOOK_RIGHT, true)
                 controller.setAction(Action.LOOK_LEFT, false)
             }
@@ -266,31 +268,10 @@ class GameManager(val app: App) {
                 toRemove.add(it)
             }
         }
-
         bullets.removeAll(toRemove)
-
-        // apply forces to everything that cares
-//        physics()
 
         // check for and handle collisions
         handleCollisions()
-
-        // ballista cooldown, explosions growing etc.
-//        gameObjects.filterIsInstance<Updateable>().forEach { it.update() }
-
-        // update entities list with any changes
-//        gameObjects.removeAll(toRemove)
-//        gameObjects.addAll(toAdd)
-
-        // wipe entity lists
-//        toAdd.clear()
-//        toRemove.clear()
-
-        // broadcast objects + events (if any) to server
-        // get player pos
-        // get bullet pos'
-        // smash into json string
-
 
         if (System.currentTimeMillis() >= timeLastPacket + TIME_BETWEEN_PACKET_UPDATE && app.ENABLE_MULTIPLAYER) {
             timeLastPacket = System.currentTimeMillis()
@@ -411,21 +392,22 @@ fun render() {
             }
         }
 
+        // draw other players
+        otherPlayers.forEach {
+                push()
+                translate(it.pos.x, it.pos.y -  boxSize / 2f, it.pos.z)
+                rotateY(-it.rotation)
+                fill(color(255f, 255f, 0f))
+                box(35f)
+                pop()
+        }
+
         // draw projectiles
         bullets.forEach {
             push()
             translate(it.pos.x, it.pos.y, it.pos.z)
             fill(color(255f, 0f, 255f))
             sphere(10f)
-            pop()
-        }
-
-        // draw other players
-        otherPlayers.forEach {
-            push()
-            translate(it.pos.x, it.pos.y - boxSize / 2f, it.pos.z)
-            fill(color(255f, 255f, 0f))
-            box(35f)
             pop()
         }
 

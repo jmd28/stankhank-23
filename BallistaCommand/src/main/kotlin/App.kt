@@ -132,12 +132,15 @@ class App : PApplet() {
     override fun keyPressed(event: KeyEvent?) {
         try {
             game.keyPressed()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
         }
     }
 
     override fun keyReleased() {
-        game.keyReleased()
+        try {
+            game.keyReleased()
+        } catch (_: Exception) {
+        }
     }
 
 //    var prevMouseX = 0
