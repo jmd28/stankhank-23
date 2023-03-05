@@ -280,6 +280,7 @@ class GameManager(val app: App) {
                 val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
                 app.server_udp_socket.receive(rx_packet)
                 val rx: JSONObject = JSONObject(String(rx_packet.data))
+                println(rx)
 
                 val os: JSONObject = rx["objects"] as JSONObject
                 val iter: Iterator<String> = os.keys()
@@ -475,13 +476,16 @@ class GameManager(val app: App) {
                         player.rotation = rotation
                     } else {
                         // create new players
-                        otherPlayers.add(Player(
-                            PVector(x, y),
+                        val p = Player(
+                            PVector(x, 0f, y),
                             rotation,
                             null,
                             key,
                             selfGenerated = false
-                        ))
+                        )
+                        otherPlayers.add(p)
+                        uuidToObject.put(key, p)
+
                     }
                 }
 

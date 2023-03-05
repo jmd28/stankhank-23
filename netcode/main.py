@@ -249,10 +249,6 @@ def thread_new_room(room_id):
                 height = BULLET_HEIGHT
 
             # draw in cv2
-            print("x: " + str(x_position))
-            print("y: " + str(y_position))
-            print("width: " + str(width))
-            print("height: " + str(height))
             cv2.rectangle(img, (int(x_position), int(y_position)), (int(x_position+width), int(y_position+height)), (0, 0, 0), 2)
         
         # encode into byte array
