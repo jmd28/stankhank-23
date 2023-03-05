@@ -220,7 +220,7 @@ def thread_new_room(room_id):
     """
     STATE
     {
-        "events": [{"bulletSpawn": {"uuid": uuid, "object": object}}]
+        "events": [{"bullet_spawn": {"uuid": uuid, "object": object}}]
         "objects": {"id": {x, y, w, h} }
     }
     

@@ -257,7 +257,7 @@ class GameManager(val app: App) {
 
 
             var events = if (bulletsToNetwork != null)
-                "[{\"bulletSpawn\": {\"uuid\": \"${bulletsToNetwork!!.uuid}\" }}]"
+                "[{\"bullet_spawn\": {\"uuid\": \"${bulletsToNetwork!!.uuid}\" }}]"
             else "[]"
             bulletsToNetwork = null
 
