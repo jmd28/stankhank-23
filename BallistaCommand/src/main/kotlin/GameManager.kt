@@ -280,7 +280,6 @@ class GameManager(val app: App) {
                 val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
                 app.server_udp_socket.receive(rx_packet)
                 val rx: JSONObject = JSONObject(String(rx_packet.data))
-                println(rx)
 
                 val os: JSONObject = rx["objects"] as JSONObject
                 val iter: Iterator<String> = os.keys()

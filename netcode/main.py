@@ -66,7 +66,6 @@ class Object:
 def rx_json(socket):
     while True:
         data = socket.recv(4096).decode(ENCODING).rstrip('\x00').rstrip('\n')
-        print(data)
         if len(data) > 0:
             return json.loads(data)
 
@@ -306,7 +305,6 @@ def thread_new_room(room_id):
         start_t = time.time_ns()  # ns
         if time.time_ns() < start_t + PACKET_COLLECT_DELAY_NS:
             packet_data = rx_json_udp(rx_udp_socket)
-            print(packet_data)
             # contains objects [], events []
             # update objects via uuid with given objects
             rx_os = packet_data["objects"]
