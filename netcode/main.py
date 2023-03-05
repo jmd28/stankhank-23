@@ -219,7 +219,13 @@ def thread_new_room(room_id):
     # player_b_state = {}
     # player_a_update = False
     # player_b_update = False
+    timeSinceLastCollision = time.time_ns()
     while True:
+        if time.time_ns() > timeSinceLastCollision + 5e6: # 5 ,ms
+            timeSinceLastCollision = time.time_ns()
+            
+        # read in packets every ms
+        # every 5ms, compute and resolve collisions
         PACKET_COLLECT_DELAY_NS = 1e6
         # read in packets for like 1ms
         start_t = time.time_ns()  # ns
