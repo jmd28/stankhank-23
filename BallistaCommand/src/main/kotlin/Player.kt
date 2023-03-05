@@ -1,10 +1,9 @@
 import processing.core.PVector
 import java.util.UUID
 
-// these behave badly because they're const
-// should probs be static val instead
-const val MAX_LIVES = 3
-const val BOOLET_COOLDOWN = 500 // ms
+
+val MAX_LIVES = 3
+val BOOLET_COOLDOWN = 500 // ms
 
 data class Player(
     override val pos: PVector,

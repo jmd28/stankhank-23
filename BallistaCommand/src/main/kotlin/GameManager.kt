@@ -7,6 +7,7 @@ import java.net.InetAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
 import java.util.*
+import kotlin.system.exitProcess
 
 // this runs the actual game
 class GameManager(val app: App) {
@@ -29,13 +30,6 @@ class GameManager(val app: App) {
 
     val bullets = mutableListOf<Boolet>()
     val otherPlayers = mutableListOf<Player>()
-
-    // use these lists where concurrent modification might get funky
-    // objects to add after a trip through the game loop
-    private var toAdd = mutableListOf<GameObject>()
-
-    // objects to remove after a trip through the game loop
-    private var toRemove = mutableListOf<GameObject>()
 
     val TIME_BETWEEN_PACKET_UPDATE = 100
     var timeLastPacket = System.currentTimeMillis()
@@ -81,12 +75,42 @@ class GameManager(val app: App) {
 //        score += waves.scoreMultiplier()*points
     }
 
+    var collisions: List<List<UUID>> = listOf()
+
     // check for and handle any collisions
     private fun handleCollisions() {
-//         collisions.forEach {
-//               // handle each ent in here
-//         }
+         collisions.forEach { ids ->
+             // handle each ent in here
+             val isDeath = ids.any { val obj = uuidToObject[it]; obj is Boolet }
 
+             if (isDeath) {
+                 ids.forEach {
+                     val obj = uuidToObject[it];
+                     when (obj) {
+                          is Boolet -> {
+                              bullets.remove(obj)
+                              booletPool.returnObject(obj)
+                          }
+                         is Player -> {
+                             obj.lives--
+                             if (obj.lives == 0) {
+                                 otherPlayers.remove(obj)
+                                 if (obj == player) exitProcess(0)
+                             }
+                         }
+                     }
+                 }
+             }
+//             it.forEach { id ->
+//                 val obj = uuidToObject[id]
+//                 if (obj is Player) {
+//                     println("a player")
+//                 }
+//                 if (obj is Boolet) {
+//                     println("a boolet")
+//                 }
+//             }
+         }
     }
 
     // the player entity
