@@ -149,7 +149,7 @@ class GameManager(val app: App) {
 
     // how
     fun Player.handleAction(action: Action) {
-        println("actio $action")
+//        println("actio $action")
         when (action) {
             Action.LOOK_LEFT -> {
                 rotation -= 0.002f
@@ -177,11 +177,15 @@ class GameManager(val app: App) {
             }
 
             Action.PEW -> {
+//                println("isOnCooldown $isOnCooldown")
+                if (isOnCooldown) return
+
                 val boolet = booletPool.getObject()
                 boolet.pos.set(PVector.add(pos, look.mult(5f)))
                 boolet.vel.set(look.mult(0.3f))
                 boolet.expiresAt = System.currentTimeMillis() + BOOLET_LIFETIME
                 bullets.add(boolet)
+                cooldownEndsAt = System.currentTimeMillis() + BOOLET_COOLDOWN
             }
         }
     }
@@ -190,7 +194,7 @@ class GameManager(val app: App) {
         controller.setAction(Action.FORWARD, true)
 
         val rng = app.random(1f)
-        println(rng)
+//        println(rng)
         when {
             (rng<0.05f) -> {
                 controller.setAction(Action.LOOK_LEFT, true)
@@ -200,10 +204,6 @@ class GameManager(val app: App) {
                 controller.setAction(Action.LOOK_RIGHT, true)
                 controller.setAction(Action.LOOK_LEFT, false)
             }
-//            else -> {
-//                controller.setAction(Action.LOOK_LEFT, false)
-//                controller.setAction(Action.LOOK_RIGHT, false)
-//            }
         }
 
     }
