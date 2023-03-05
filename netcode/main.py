@@ -191,10 +191,10 @@ def thread_new_room(room_id):
     objects = {}
     events = []
     for p_uuid in players.keys():
-        o = {"x": random.randrange(0, GAME_WIDTH),
-             "y": random.randrange(0,GAME_HEIGHT),
-             "o_type": ObjectType.PLAYER.value,
-             "rot": random.randrange(0, int(2 * pi))}
+        o = {"x": float(random.randrange(0, GAME_WIDTH)),
+             "y": float(random.randrange(0,GAME_HEIGHT)),
+             "o_type": float(ObjectType.PLAYER.value),
+             "rot": float(random.randrange(0, int(2 * pi)))}
         objects[p_uuid] = o
 
     state = {

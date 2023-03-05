@@ -4,7 +4,9 @@ import java.util.UUID
 const val BOOLET_LIFETIME = 5000L // ms
 
 data class Boolet(
+    override val selfGenerated: Boolean,
     override val pos: PVector = PVector(),
+    override var rotation: Float = 0f,
     val vel: PVector = PVector(),
     val uuid: UUID = UUID.randomUUID(),
     var expiresAt: Long = BOOLET_LIFETIME,

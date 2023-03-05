@@ -2,6 +2,7 @@ import org.json.JSONObject
 import processing.core.PApplet
 import processing.core.PConstants
 import processing.core.PGraphics
+import processing.core.PVector
 import processing.event.KeyEvent
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -94,12 +95,30 @@ class App : PApplet() {
                 val rx: JSONObject = JSONObject(String(rx_packet.data))
 
                 val os: JSONObject = rx["objects"] as JSONObject
-                val temp: Iterator<String> = os.keys()
-                while (temp.hasNext()) {
-                    val key = temp.next()
-                    val value: Any = os.get(key)
+                val iter: Iterator<String> = os.keys()
+                while (iter.hasNext()) {
+                    val key = UUID.fromString(iter.next())
+                    val value: JSONObject = os.get(key.toString()) as JSONObject
 
-                    #game.player.uu
+                    val x = value["x"].toString().toFloat()
+                    val y = value["y"].toString().toFloat()
+                    val rotation = value["rot"].toString().toFloat()
+
+                    if (key == player_uuid) {
+                        game.player.uuid = key
+                        game.player.pos.x = x
+                        game.player.pos.y = y
+                        game.player.rotation = rotation
+                    } else {
+                        // create new players
+                        game.otherPlayers.add(Player(
+                            PVector(x, y),
+                            rotation,
+                            null,
+                            key,
+                            selfGenerated = false
+                        ))
+                    }
                 }
 
                 // TODO: update other players + bullets positions
