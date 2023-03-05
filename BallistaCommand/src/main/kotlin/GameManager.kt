@@ -174,6 +174,7 @@ class GameManager(val app: App) {
                     it.vel.set(look.mult(0.3f))
                     it.expiresAt = System.currentTimeMillis() + BOOLET_LIFETIME
                     it.uuid = UUID.randomUUID()
+                    it.selfGenerated = true
                     uuidToObject[it.uuid] = it
                 }
 
@@ -231,9 +232,11 @@ class GameManager(val app: App) {
         // update bullets
         val toRemove = mutableListOf<Boolet>()
         bullets.forEach {
-            if (!it.selfGenerated) return
-            it.pos.add(it.vel)
-            it.pos.y = terrainHeight(it.pos.x, it.pos.z) - 40f
+            if (it.selfGenerated) {
+                it.pos.add(it.vel)
+                it.pos.y = terrainHeight(it.pos.x, it.pos.z) - 40f
+            }
+            // check for yeet
             if (System.currentTimeMillis() > it.expiresAt) {
                 booletPool.returnObject(it)
                 toRemove.add(it)
@@ -311,7 +314,8 @@ class GameManager(val app: App) {
                         val o = uuidToObject[bullet_uuid]
                         if (o is Boolet && o.selfGenerated) return
                         val b = Boolet(
-                            false, PVector(1231f, 0f, 123f), 123f, PVector(), uuid = bullet_uuid,
+                            false, PVector(1231f, 0f, 123f), 123f, PVector(),
+                            uuid = bullet_uuid,
                             expiresAt = System.currentTimeMillis() + BOOLET_LIFETIME
                         )
                         bullets.add(b)
