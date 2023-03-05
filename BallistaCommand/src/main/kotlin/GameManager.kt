@@ -457,7 +457,7 @@ class GameManager(val app: App) {
                 val rx_buffer = ByteArray(4096)
                 val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
                 app.server_udp_socket.receive(rx_packet)
-                val rx: JSONObject = JSONObject(String(rx_packet.data))
+                val rx = JSONObject(String(rx_packet.data))
 
                 val os: JSONObject = rx["objects"] as JSONObject
                 val iter: Iterator<String> = os.keys()
@@ -484,7 +484,7 @@ class GameManager(val app: App) {
                             selfGenerated = false
                         )
                         otherPlayers.add(p)
-                        uuidToObject.put(key, p)
+                        uuidToObject[key] = p
 
                     }
                 }
