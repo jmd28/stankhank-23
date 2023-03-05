@@ -196,7 +196,7 @@ def thread_new_room(room_id):
             x=random.randrange(0, GAME_WIDTH),
             y=random.randrange(0, GAME_HEIGHT),
             o_type=ObjectType.PLAYER,
-            rot=random.randrange(0, int(2*pi))
+            rot=random.randrange(0, int(2 * pi))
         )
         objects[p_uuid] = o
 
@@ -220,11 +220,39 @@ def thread_new_room(room_id):
     # player_a_update = False
     # player_b_update = False
     timeSinceLastCollision = time.time_ns()
+    # setup system to handle collision on other threads
+    import queue
+    q_service = queue.Queue()
+
+    def handleCollisions(objects, q):
+        import cv2
+
+        # draw boxes in opencv2
+        # send image to http url
+        # get response
+
+        # calculate collisions
+        # add colliding objects to q [[uuid, uuid, uuid]]
+        time.sleep(0.2)
+        q.put("DUMMY")
+        return
+
     while True:
-        if time.time_ns() > timeSinceLastCollision + 5e6: # 5 ,ms
+        new_events = []
+        if time.time_ns() > timeSinceLastCollision + 5e6:  # 5 ,ms
             timeSinceLastCollision = time.time_ns()
-            # TODO: connect to service!
-            # TODO: maybe do in
+            t = threading.Thread(target=handleCollisions, args=(objects, q_service))
+            t.start()
+
+        try:
+            collisions = q_service.get(block=False)
+        except:
+            collisions = None
+
+        if collisions is not None:
+            # then add a collision event
+            event = {"collision": [collisions]}
+            new_events.append(event)
 
         # read in packets every ms
         # every 5ms, compute and resolve collisions
@@ -243,7 +271,7 @@ def thread_new_room(room_id):
             for event in rx_es:
                 for key, value in event.items():
                     if key == EventTypes.BULLET_SPAWN:
-                        events.append(event)
+                        new_events.append(event)
                         # need to create new object
                         bullet_uuid = value['uuid']
                         o = value['object']
@@ -251,9 +279,9 @@ def thread_new_room(room_id):
                         # event will also be sent to players such that they can spawn the bullet
 
         # send updated state to all players
+        state['events'] = new_events
         for player in players.values():
             tx_json_udp(tx_udp_socket, player.ip_addr, player.udp_port, state)
-        events = []
 
         # print("handle rx: " + packet_data)
         # if packet_data['addr'][0] == ip_addr_a:
