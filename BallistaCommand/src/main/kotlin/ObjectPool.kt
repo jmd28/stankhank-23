@@ -18,6 +18,7 @@ class ObjectPool<T>(val app: App, val size: Int = 20, val initialiser: () -> T) 
     fun getObject(): T {
         println(pool.size)
         return pool.pollFirst() ?: initialiser()
+
     }
 
 //    fun getExplosion(pos: PVector): Explosion {

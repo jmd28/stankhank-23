@@ -173,6 +173,7 @@ class GameManager(val app: App) {
                     it.pos.set(PVector.add(pos, look.mult(50f)))
                     it.vel.set(look.mult(0.3f))
                     it.expiresAt = System.currentTimeMillis() + BOOLET_LIFETIME
+                    it.uuid = UUID.randomUUID()
                     uuidToObject[it.uuid] = it
                 }
 
@@ -230,6 +231,7 @@ class GameManager(val app: App) {
         // update bullets
         val toRemove = mutableListOf<Boolet>()
         bullets.forEach {
+            if (!it.selfGenerated) return
             it.pos.add(it.vel)
             it.pos.y = terrainHeight(it.pos.x, it.pos.z) - 40f
             if (System.currentTimeMillis() > it.expiresAt) {
@@ -306,6 +308,8 @@ class GameManager(val app: App) {
                         println("bullet Spawn!!!")
                         val bullet_spawn: JSONObject = it.get("bullet_spawn") as JSONObject
                         val bullet_uuid = UUID.fromString(bullet_spawn.get("uuid").toString())
+                        val o = uuidToObject[bullet_uuid]
+                        if (o is Boolet && o.selfGenerated) return
                         val b = Boolet(
                             false, PVector(1231f, 0f, 123f), 123f, PVector(), uuid = bullet_uuid,
                             expiresAt = System.currentTimeMillis() + BOOLET_LIFETIME
