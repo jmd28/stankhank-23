@@ -113,7 +113,7 @@ def thread_on_new_client(client_socket, addr):
 # handles a game
 def thread_new_room(room_id):
     # wait 20s before starting game
-    time.sleep(2)
+    time.sleep(5)
 
     # room has array of sockets and ip addr, one for each player
     room = rooms[room_id]

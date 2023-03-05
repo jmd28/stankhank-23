@@ -327,10 +327,8 @@ class GameManager(val app: App) {
                     val y = value["y"].toString().toFloat()
                     val rotation = value["rot"].toString().toFloat()
 
-                    if (key != app.player_uuid) {
-                        val p: GameObject = uuidToObject[key] ?: continue
-
-                        if (p in bullets)
+                    val p: GameObject = uuidToObject[key] ?: continue
+                    if (!p.selfGenerated) {
                         p.pos.x = x
                         p.pos.y = y
                         p.rotation = rotation
