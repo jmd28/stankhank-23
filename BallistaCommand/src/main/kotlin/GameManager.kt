@@ -170,7 +170,7 @@ class GameManager(val app: App) {
                 if (isOnCooldown) return
 
                 val boolet = booletPool.getObject().also {
-                    it.pos.set(PVector.add(pos, look.mult(5f)))
+                    it.pos.set(PVector.add(pos, look.mult(50f)))
                     it.vel.set(look.mult(0.3f))
                     it.expiresAt = System.currentTimeMillis() + BOOLET_LIFETIME
                     uuidToObject[it.uuid] = it
@@ -297,10 +297,13 @@ class GameManager(val app: App) {
                 // THISSSS is for events
                 val rx_events: JSONArray = rx["events"] as JSONArray
 
+                println("rx $rx_events")
+                // for each event
                 rx_events.forEach {
                     it as JSONObject
 
                     if (it.keySet().contains("bullet_spawn")) {
+                        println("bullet Spawn!!!")
                         val bullet_spawn: JSONObject = it.get("bullet_spawn") as JSONObject
                         val bullet_uuid = UUID.fromString(bullet_spawn.get("uuid").toString())
                         val b = Boolet(
