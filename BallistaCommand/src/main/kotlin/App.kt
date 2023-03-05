@@ -2,6 +2,8 @@ import com.jogamp.newt.opengl.GLWindow
 
 import processing.core.PApplet
 import processing.core.PConstants
+import processing.core.PGraphics
+import processing.core.PImage
 import processing.event.KeyEvent
 
 /**
@@ -9,6 +11,9 @@ import processing.event.KeyEvent
  * handling input, render control, etc
  */
 class App : PApplet() {
+
+    lateinit var hudView: PGraphics
+    lateinit var gameView: PGraphics
 
     // initialise app state
     var state = GAMESTATE.PREGAME
@@ -34,6 +39,13 @@ class App : PApplet() {
         audio = Audio(this)
         textAlign(PConstants.LEFT)
         game.setup()
+
+        // HUD layer
+        hudView = createGraphics(width, height, P2D)
+        // Game view
+        gameView = createGraphics(width, height, P3D)
+
+
     }
 
     override fun settings() {

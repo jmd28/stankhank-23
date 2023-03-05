@@ -1,7 +1,9 @@
 import processing.core.PApplet
 import processing.core.PConstants
+import processing.core.PConstants.P2D
 import processing.core.PConstants.P3D
 import processing.core.PVector
+import java.util.UUID
 import kotlin.math.PI
 
 // this runs the actual game
@@ -14,13 +16,14 @@ class GameManager(val app: App) {
     // we will divide the screen into vertical strips to aid placement
     var gridSize = 0f
 
-    lateinit var quadtree: Quadtree
-
     var gameObjects = mutableListOf<GameObject>()
 
     val booletPool = ObjectPool(app) {
         Boolet()
     }
+
+    // TODO: use
+    var uuidToObject = mutableMapOf<UUID, GameObject>()
 
     val bullets = mutableListOf<Boolet>()
 
@@ -37,8 +40,6 @@ class GameManager(val app: App) {
         // set some dimensions
         this.gridSize = app.displayWidth / 9f
 
-        // use quadtree to speed up collision detection
-        quadtree = Quadtree(0, BoundingBox(0f, 0f, app.displayWidth.toFloat(), app.displayHeight.toFloat()))
 
         // add initial set of entities
 //        with(gameObjects) {
@@ -112,26 +113,12 @@ class GameManager(val app: App) {
     private fun handleCollisions() {
 
         // objects we need to check against for collisions
-        val returnObjects: MutableList<Collidable> = ArrayList()
 
-        gameObjects.filterIsInstance<Collidable>().forEach {
-            returnObjects.clear()
-            quadtree.retrieve(returnObjects, it)
-
-            // objects to check against
-//            returnObjects
-//                .filter { obj -> obj.circleCircle(it) }
-//                .forEach { obj ->
-//                    // handle in both directions
-//                    obj.onCollision(it)
-//                    it.onCollision(obj)
-//                }
-        }
     }
 
     // the player entity
     val player = Player(pos = PVector(70f, 0f, 120f))
-    val MVMT_SPEED = 0.03f
+    val MVMT_SPEED = 0.06f
 
     // game over check
     fun gameOver(): Boolean = false
@@ -165,8 +152,9 @@ class GameManager(val app: App) {
 
             Action.PEW -> {
                 val boolet = booletPool.getObject()
-                boolet.pos.set(PVector.add(player.pos,  player.look.mult(5f)))
+                boolet.pos.set(PVector.add(player.pos, player.look.mult(5f)))
                 boolet.vel.set(player.look.mult(0.3f))
+                boolet.expiresAt = System.currentTimeMillis() + BOOLET_LIFETIME
                 bullets.add(boolet)
             }
         }
@@ -183,15 +171,6 @@ class GameManager(val app: App) {
             return
         }
 
-        // update quadtree
-        quadtree.clear()
-
-        // collision states
-        gameObjects.filterIsInstance<Collidable>().forEach {
-            // update hitboxes
-            it.updateBounds()
-            quadtree.insert(it)
-        }
 
         // yeet off-screen stuff
         boundsCheck()
@@ -217,10 +196,17 @@ class GameManager(val app: App) {
         }
 
         // update bullets
-        bullets.forEach{
+        val toRemove = mutableListOf<Boolet>()
+        bullets.forEach {
             it.pos.add(it.vel)
             it.pos.y = terrainHeight(it.pos.x, it.pos.z) - 40f
+            if (System.currentTimeMillis() > it.expiresAt) {
+                booletPool.returnObject(it)
+                toRemove.add(it)
+            }
         }
+
+        bullets.removeAll(toRemove)
 
         // apply forces to everything that cares
 //        physics()
@@ -244,14 +230,15 @@ class GameManager(val app: App) {
     val noiseCoeff = 0.01f
     fun terrainHeight(x: Float, y: Float) = -100 * app.noise(x * noiseCoeff, y * noiseCoeff)
 
-//    val p2 = app.createGraphics(app.)
 
     // draw all the things
     fun render() {
 
+        with(app.gameView) {
+
+            beginDraw()
 
 
-        with(app) {
 //            noClip()
             noStroke()
             // draw bg
@@ -285,10 +272,11 @@ class GameManager(val app: App) {
 
 //            lights()
             ambient(0.1f)
-            directionalLight(255f, 255f, 255f, 0.5f,1f,0.2f)
+            directionalLight(255f, 255f, 255f, 0.5f, 1f, 0.2f)
 
             // draw a world
             val worldSize = 100
+
             // draw the world with boxes
 //            (0..9999).forEach {
 //                pushMatrix()
@@ -301,7 +289,7 @@ class GameManager(val app: App) {
             fun terrainVertex(x: Int, z: Int) {
                 val x = x * 30f
                 val z = z * 30f
-                vertex(x, terrainHeight(x, z) - boxSize , z)
+                vertex(x, terrainHeight(x, z) - boxSize, z)
             }
 
             // draw the world as a mesh of triangles
@@ -309,14 +297,14 @@ class GameManager(val app: App) {
                 (0..30).forEach { j ->
                     beginShape()
                     terrainVertex(i, j)
-                    terrainVertex(i+1, j)
-                    terrainVertex(i, j+1)
+                    terrainVertex(i + 1, j)
+                    terrainVertex(i, j + 1)
                     endShape()
 
                     beginShape()
-                    terrainVertex(i+1, j)
-                    terrainVertex(i+1, j+1)
-                    terrainVertex(i, j+1)
+                    terrainVertex(i + 1, j)
+                    terrainVertex(i + 1, j + 1)
+                    terrainVertex(i, j + 1)
                     endShape()
                 }
             }
@@ -325,30 +313,42 @@ class GameManager(val app: App) {
             bullets.forEach {
                 push()
                 translate(it.pos.x, it.pos.y, it.pos.z)
-                fill(color(255f,0f,255f))
+                fill(color(255f, 0f, 255f))
                 sphere(10f)
                 pop()
             }
 
             popMatrix()
 
-            // hud stuff goes here
-
-//            rect(0f, height*.9f, width.toFloat(), height*.1f)
-
-
-            // xhair
-            stroke(40)
-            line(width / 2f, 0f, width / 2f, displayHeight.toFloat())
-            line(0f, height / 2f, displayWidth.toFloat(), height / 2f)
-
-
-            text("FPS $frameRate", 10f, 90f)
+            endDraw()
         }
 
-        // quadtree
-//        quadtree.draw(app)
-//        gameObjects.filterIsInstance<Collidable>().forEach { it.drawBoundingBox(app) }
+        with(app.hudView) {
+            beginDraw()
+
+            // hud stuff goes here
+
+            rect(0f, height * .9f, width.toFloat(), height * .1f)
+            // xhair
+            stroke(40)
+            line(width / 2f, 0f, width / 2f, height.toFloat())
+            line(0f, height / 2f, width.toFloat(), height / 2f)
+
+
+            text("FPS ${app.frameRate}", 10f, 90f)
+
+            endDraw()
+        }
+
+        with(app) {
+            image(gameView, 0f, 0f)
+
+            pushStyle()
+            tint(255f, 255f, 255f, 100f)
+            image(hudView, 0f, 0f)
+            popStyle()
+        }
+
     }
 
     // the illusion of control
