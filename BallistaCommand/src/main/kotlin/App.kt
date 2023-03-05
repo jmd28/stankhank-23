@@ -1,14 +1,12 @@
-import com.jogamp.newt.opengl.GLWindow
-
+import org.json.JSONObject
 import processing.core.PApplet
 import processing.core.PConstants
 import processing.core.PGraphics
-import processing.core.PImage
-import processing.data.JSONObject
 import processing.event.KeyEvent
-import java.lang.Exception
+import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.Socket
+import java.net.SocketTimeoutException
 import java.util.*
 
 /**
@@ -28,7 +26,7 @@ class App : PApplet() {
 
     // multiplayer doodads
 
-    val ENABLE_MULTIPLAYER = false
+    val ENABLE_MULTIPLAYER = true
     var server_udp_port: Int = -1
     val server_udp_socket = DatagramSocket()
     val tx_udp_socket = DatagramSocket()
@@ -78,7 +76,7 @@ class App : PApplet() {
                 msg = scanner.nextLine()
                 break
             }
-            val json_msg = org.json.JSONObject(msg)
+            val json_msg = JSONObject(msg)
             server_udp_port = json_msg["server_port"] as Int
             player_uuid = UUID.fromString(json_msg["player"] as String)
             println(player_uuid)
@@ -87,6 +85,28 @@ class App : PApplet() {
             val client_udp_port = server_udp_socket.localPort
             // send our port to server
             server_tcp_socket.outputStream.write(("{\"port\":$client_udp_port}").toByteArray())
+
+            // read initial state and set players
+            try {
+                val rx_buffer = ByteArray(4096)
+                val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
+                server_udp_socket.receive(rx_packet)
+                val rx: JSONObject = JSONObject(String(rx_packet.data))
+
+                val os: JSONObject = rx["objects"] as JSONObject
+                val temp: Iterator<String> = os.keys()
+                while (temp.hasNext()) {
+                    val key = temp.next()
+                    val value: Any = os.get(key)
+
+                    #game.player.uu
+                }
+
+                // TODO: update other players + bullets positions
+                // TODO: handle events (create bullets)
+
+            } catch (_: SocketTimeoutException) {
+            }
         }
 
     }

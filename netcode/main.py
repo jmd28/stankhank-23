@@ -49,6 +49,7 @@ class ObjectType(Enum):
 
 class EventTypes(Enum):
     BULLET_SPAWN = "bullet_spawn"
+    COLLISION = "collision"
 
 
 class Object:
@@ -57,7 +58,6 @@ class Object:
         self.y = y
         self.rot = rot
         self.o_type = o_type
-
 
 def rx_json(socket):
     while True:
@@ -191,18 +191,19 @@ def thread_new_room(room_id):
     objects = {}
     events = []
     for p_uuid in players.keys():
-        o = Object(
-            x=random.randrange(0, GAME_WIDTH),
-            y=random.randrange(0, GAME_HEIGHT),
-            o_type=ObjectType.PLAYER,
-            rot=random.randrange(0, int(2 * pi))
-        )
+        o = {"x": random.randrange(0, GAME_WIDTH),
+             "y": random.randrange(0,GAME_HEIGHT),
+             "o_type": ObjectType.PLAYER.value,
+             "rot": random.randrange(0, int(2 * pi))}
         objects[p_uuid] = o
 
     state = {
         "events": events,
         "objects": objects
     }
+
+    for player in players.values():
+        tx_json_udp(tx_udp_socket, player.ip_addr, player.udp_port, state)
 
     """
     STATE
@@ -250,7 +251,7 @@ def thread_new_room(room_id):
 
         if collisions is not None:
             # then add a collision event
-            event = {"collision": [collisions]}
+            event = {EventTypes.COLLISION.value: collisions}
             events.append(event)
 
         # read in packets every ms
