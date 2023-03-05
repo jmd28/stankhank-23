@@ -1,10 +1,12 @@
 import org.json.JSONArray
 import org.json.JSONObject
+import processing.core.PApplet
 import processing.core.PVector
 import java.net.DatagramPacket
 import java.net.InetAddress
+import java.net.Socket
 import java.net.SocketTimeoutException
-import java.util.UUID
+import java.util.*
 
 // this runs the actual game
 class GameManager(val app: App) {
@@ -224,7 +226,7 @@ class GameManager(val app: App) {
             objectData.putAll(bullets.map {
                 it.uuid to mapOf(
                     "x" to it.pos.x,
-                    "y" to it.pos.y,
+                    "y" to it.pos.z,
                     "rot" to 1f,
                     "o_type" to 1f
                 )
@@ -232,7 +234,7 @@ class GameManager(val app: App) {
             objectData.put(
                 app.player_uuid, mapOf(
                     "x" to player.pos.x,
-                    "y" to player.pos.y,
+                    "y" to player.pos.z,
                     "rot" to player.rotation,
                     "o_type" to 0f
                 )
@@ -268,7 +270,7 @@ class GameManager(val app: App) {
                     val p: GameObject = uuidToObject[key] ?: continue
                     if (!p.selfGenerated) {
                         p.pos.x = x
-                        p.pos.y = y
+                        p.pos.z = y
                         p.rotation = rotation
                     }
                 }
@@ -397,24 +399,92 @@ class GameManager(val app: App) {
     }
 
     // game loop driver fun
+    var setup = true
     fun draw() {
 
-        val current: Long = System.currentTimeMillis()
-        val dt: Long = current - previous
-        previous = current
-        lag += dt
+        if (app.ENABLE_MULTIPLAYER && setup) {
+            // multiplayer doooodads
+            app.server_udp_socket.setSoTimeout(1)
 
-        // processInput()
-        while (lag >= MS_PER_UPDATE) {
-            // update model here
-            update(dt)
-            lag -= MS_PER_UPDATE
+            // init tcp connection to server
+            // connect to magic number port and host over TCP
+            app.server_tcp_socket = Socket(app.HOST, app.HOST_TCP_PORT)
+            // send magic room number to server
+            app.server_tcp_socket.outputStream.write(("{\"room_id\":${app.ROOM_ID}}").toByteArray())
+            // wait... get udp port number to open a tx socket to
+            val scanner = Scanner(app.server_tcp_socket.getInputStream())
+            var msg = ""
+            while (scanner.hasNextLine()) {
+                msg = scanner.nextLine()
+                break
+            }
+            val json_msg = JSONObject(msg)
+            app.server_udp_port = json_msg["server_port"] as Int
+            app.player_uuid = UUID.fromString(json_msg["player"] as String)
+
+            // open local udp socket and connect to remove server udp port
+            val client_udp_port = app.server_udp_socket.localPort
+            // send our port to server
+            app.server_tcp_socket.outputStream.write(("{\"port\":$client_udp_port}").toByteArray())
+
+            // read initial state and set players
+            try {
+                val rx_buffer = ByteArray(4096)
+                val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
+                app.server_udp_socket.receive(rx_packet)
+                val rx: JSONObject = JSONObject(String(rx_packet.data))
+
+                val os: JSONObject = rx["objects"] as JSONObject
+                val iter: Iterator<String> = os.keys()
+                while (iter.hasNext()) {
+                    val key = UUID.fromString(iter.next())
+                    val value: JSONObject = os.get(key.toString()) as JSONObject
+
+                    val x = value["x"].toString().toFloat()
+                    val y = value["y"].toString().toFloat()
+                    val rotation = value["rot"].toString().toFloat()
+
+                    if (key == app.player_uuid) {
+                        player.uuid = key
+                        player.pos.x = x
+                        player.pos.z = y
+                        player.rotation = rotation
+                    } else {
+                        // create new players
+                        otherPlayers.add(Player(
+                            PVector(x, y),
+                            rotation,
+                            null,
+                            key,
+                            selfGenerated = false
+                        ))
+                    }
+                }
+
+                // TODO: update other players + bullets positions
+                // TODO: handle events (create bullets)
+
+            } catch (_: SocketTimeoutException) {
+            }
+            setup = false
+        } else {
+
+            val current: Long = System.currentTimeMillis()
+            val dt: Long = current - previous
+            previous = current
+            lag += dt
+
+            // processInput()
+            while (lag >= MS_PER_UPDATE) {
+                // update model here
+                update(dt)
+                lag -= MS_PER_UPDATE
+            }
+
+            // render
+            render()
         }
-
-        // render
-        render()
     }
-
 }
 
 const val MS_PER_UPDATE = 1

@@ -27,7 +27,7 @@ class App : PApplet() {
 
     // multiplayer doodads
 
-    val ENABLE_MULTIPLAYER = false
+    val ENABLE_MULTIPLAYER = true
     var server_udp_port: Int = -1
     val server_udp_socket = DatagramSocket()
     val tx_udp_socket = DatagramSocket()
@@ -57,74 +57,6 @@ class App : PApplet() {
         hudView = createGraphics(width, height, P2D)
         // Game view
         gameView = createGraphics(width, height, P3D)
-
-        if (ENABLE_MULTIPLAYER) {
-            // multiplayer doooodads
-            server_udp_socket.setSoTimeout(1)
-
-            // init tcp connection to server
-            // connect to magic number port and host over TCP
-            server_tcp_socket = Socket(HOST, HOST_TCP_PORT)
-            // send magic room number to server
-            server_tcp_socket.outputStream.write(("{\"room_id\":$ROOM_ID}").toByteArray())
-            // wait... get udp port number to open a tx socket to
-            val scanner = Scanner(server_tcp_socket.getInputStream())
-            var msg = ""
-            while (scanner.hasNextLine()) {
-                msg = scanner.nextLine()
-                break
-            }
-            val json_msg = JSONObject(msg)
-            server_udp_port = json_msg["server_port"] as Int
-            player_uuid = UUID.fromString(json_msg["player"] as String)
-            println(player_uuid)
-
-            // open local udp socket and connect to remove server udp port
-            val client_udp_port = server_udp_socket.localPort
-            // send our port to server
-            server_tcp_socket.outputStream.write(("{\"port\":$client_udp_port}").toByteArray())
-
-            // read initial state and set players
-            try {
-                val rx_buffer = ByteArray(4096)
-                val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
-                server_udp_socket.receive(rx_packet)
-                val rx: JSONObject = JSONObject(String(rx_packet.data))
-
-                val os: JSONObject = rx["objects"] as JSONObject
-                val iter: Iterator<String> = os.keys()
-                while (iter.hasNext()) {
-                    val key = UUID.fromString(iter.next())
-                    val value: JSONObject = os.get(key.toString()) as JSONObject
-
-                    val x = value["x"].toString().toFloat()
-                    val y = value["y"].toString().toFloat()
-                    val rotation = value["rot"].toString().toFloat()
-
-                    if (key == player_uuid) {
-                        game.player.uuid = key
-                        game.player.pos.x = x
-                        game.player.pos.y = y
-                        game.player.rotation = rotation
-                    } else {
-                        // create new players
-                        game.otherPlayers.add(Player(
-                            PVector(x, y),
-                            rotation,
-                            null,
-                            key,
-                            selfGenerated = false
-                        ))
-                    }
-                }
-
-                // TODO: update other players + bullets positions
-                // TODO: handle events (create bullets)
-
-            } catch (_: SocketTimeoutException) {
-            }
-        }
-
     }
 
     override fun settings() {

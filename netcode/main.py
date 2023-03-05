@@ -66,6 +66,7 @@ class Object:
 def rx_json(socket):
     while True:
         data = socket.recv(4096).decode(ENCODING).rstrip('\x00').rstrip('\n')
+        print(data)
         if len(data) > 0:
             return json.loads(data)
 
@@ -240,11 +241,19 @@ def thread_new_room(room_id):
             # Define the box parameters
             x_position = obj["x"]
             y_position = obj["y"]
-            width = obj["w"]
-            height = obj["h"]
+            if obj['o_type'] == ObjectType.PLAYER.value:
+                width = PLAYER_WIDTH
+                height = PLAYER_HEIGHT
+            else:
+                width = BULLET_WIDTH
+                height = BULLET_HEIGHT
 
             # draw in cv2
-            cv2.rectangle(img, (x_position, y_position), (x_position+width, y_position+height), (0, 0, 0), 2)
+            print("x: " + str(x_position))
+            print("y: " + str(y_position))
+            print("width: " + str(width))
+            print("height: " + str(height))
+            cv2.rectangle(img, (int(x_position), int(y_position)), (int(x_position+width), int(y_position+height)), (0, 0, 0), 2)
         
         # encode into byte array
         success, encoded_image = cv2.imencode('.jpg', img)
