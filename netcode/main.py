@@ -7,16 +7,18 @@ import random
 ### handle events
 
 import socket
+from cmath import pi
 from ssl import SOL_SOCKET
 import threading
 import time
 import json
 from enum import Enum
+import uuid
 
 # TODO: might need to handle rotation in collision code
 
-HOST = "pc7-114--l.cs.st-andrews.ac.uk"
-TCP_PORT = 25565
+HOST = "pc7-114-l.cs.st-andrews.ac.uk"
+TCP_PORT = 21450
 ENCODING = "utf-8"
 
 rooms = {}  # id: {client_a: {}, client_b: {}}
@@ -50,11 +52,9 @@ class EventTypes(Enum):
 
 
 class Object:
-    def __init__(self, x, y, w, h, rot, o_type):
+    def __init__(self, x, y, rot, o_type):
         self.x = x
         self.y = y
-        self.w = w
-        self.h = h
         self.rot = rot
         self.o_type = o_type
 
@@ -79,6 +79,7 @@ def tx_json_udp(socket, address, port, json_data):
 def rx_json_udp(socket):
     data, addr = socket.recvfrom(4096)
     data = data.decode(ENCODING).rstrip('\x00').rstrip('\n')
+    print(data)
     json_data = json.loads(data)
     json_data['addr'] = addr
     return json_data
@@ -113,7 +114,7 @@ def thread_on_new_client(client_socket, addr):
 # handles a game
 def thread_new_room(room_id):
     # wait 20s before starting game
-    time.sleep(20)
+    time.sleep(2)
 
     # room has array of sockets and ip addr, one for each player
     room = rooms[room_id]
@@ -125,9 +126,12 @@ def thread_new_room(room_id):
     # player_b = room[1]
     player_sockets = []
     ips = []
+    uuids = []
     for player in room:
         player_sockets.append(player["socket"])
         ips.append(player["addr"][0])
+        u = uuid.uuid4()
+        uuids.append(str(u))
     # socket_a = player_a["socket"]
     # ip_addr_a = player_a["addr"][0]
     # socket_b = player_b["socket"]
@@ -140,7 +144,8 @@ def thread_new_room(room_id):
 
     # send server UDP ports to clients
     for i, p_socket in enumerate(player_sockets):
-        data = {"server_port": port, "player": i}
+        print(str(uuids[i]))
+        data = {"server_port": port, "player": str(uuids[i])}
         tx_json_tcp(p_socket, data)
 
     # data_a = {"server_port": port,"player":1}
@@ -152,11 +157,9 @@ def thread_new_room(room_id):
     # get tx UDP ports from clients
     # also get player object UUID, which we use for their entity and logical id for this server
     player_udp_ports = []
-    player_uuids = []
     for p_socket in player_sockets:
         r = rx_json(p_socket)
         player_udp_ports.append(r["port"])
-        player_uuids.append(r["uuid"])
     # player_a_udp_port = rx_json(socket_a)["port"]
     # player_b_udp_port = rx_json(socket_b)["port"]
 
@@ -167,7 +170,7 @@ def thread_new_room(room_id):
         tcp_socket = player_sockets[i]
         udp_port = player_udp_ports[i]
         ip_addr = ips[i]
-        players[player_uuids[i]] = Player(tcp_socket, udp_port, ip_addr)
+        players[uuids[i]] = Player(tcp_socket, udp_port, ip_addr)
 
     print("new_room: server_port = " + str(port))
     for i in range(player_count):
@@ -188,18 +191,18 @@ def thread_new_room(room_id):
     # UUID -> Object
     objects = {}
     events = []
-    for uuid in players.keys():
+    for p_uuid in players.keys():
         o = Object(
             x=random.randrange(0, GAME_WIDTH),
             y=random.randrange(0, GAME_HEIGHT),
-            w=PLAYER_WIDTH, h=PLAYER_HEIGHT,
-            o_type=ObjectType.PLAYER
+            o_type=ObjectType.PLAYER,
+            rot=random.randrange(0, int(2*pi))
         )
-        objects[uuid] = o
+        objects[p_uuid] = o
 
     state = {
         "events": events,
-        "objects": {objects}
+        "objects": objects
     }
 
     """
@@ -240,7 +243,7 @@ def thread_new_room(room_id):
                         # event will also be sent to players such that they can spawn the bullet
 
         # send updated state to all players
-        for player in players:
+        for player in players.values():
             tx_json_udp(tx_udp_socket, player.ip_addr, player.udp_port, state)
         events = []
 

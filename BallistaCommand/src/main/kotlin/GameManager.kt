@@ -1,8 +1,13 @@
+import org.json.JSONArray
+import org.json.JSONObject
 import processing.core.PApplet
 import processing.core.PConstants
 import processing.core.PConstants.P2D
 import processing.core.PConstants.P3D
 import processing.core.PVector
+import java.net.DatagramPacket
+import java.net.InetAddress
+import java.net.SocketTimeoutException
 import java.util.UUID
 import kotlin.math.PI
 
@@ -33,6 +38,9 @@ class GameManager(val app: App) {
 
     // objects to remove after a trip through the game loop
     private var toRemove = mutableListOf<GameObject>()
+
+    val TIME_BETWEEN_PACKET_UPDATE = 100
+    var timeLastPacket = System.currentTimeMillis()
 
     // run this at the beginning of the game
     fun setup() {
@@ -224,6 +232,49 @@ class GameManager(val app: App) {
         // wipe entity lists
 //        toAdd.clear()
 //        toRemove.clear()
+
+        // broadcast objects + events (if any) to server
+        // get player pos
+        // get bullet pos'
+        // smash into json string
+
+
+        if (System.currentTimeMillis() >= timeLastPacket + TIME_BETWEEN_PACKET_UPDATE && app.ENABLE_MULTIPLAYER) {
+            timeLastPacket = System.currentTimeMillis()
+            // tx state and rx state
+            // tx
+            //val tx_buffer = ("{" +
+            //        "\"events\": [], \"objects\": {\"${app.player_uuid}\": {\"x\": ${player.pos.x}, \"y\": ${player.pos.y}," +
+            //        "\"rot\": ${player.rotation}, \"o_type\": \"PLAYER\"" +
+            //        "}}}").toByteArray()
+
+            val tx_json = JSONObject(mapOf(
+                "events" to JSONArray(),
+                "objects" to mapOf(
+                    app.player_uuid to mapOf(
+                        "x" to player.pos.x,
+                        "y" to player.pos.y,
+                        "pos" to player.rotation
+                    )
+                )
+            ))
+
+            val tx_buffer = tx_json.toString().toByteArray()
+            val tx_packet = DatagramPacket(tx_buffer, tx_buffer.size, InetAddress.getByName(app.HOST), app.server_udp_port)
+            app.tx_udp_socket.send(tx_packet)
+            // rx
+            try {
+                val rx_buffer = ByteArray(4096)
+                val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
+                app.server_udp_socket.receive(rx_packet)
+                val rx = JSONObject(String(rx_packet.data))
+                // TODO: update other players + bullets positions
+                // TODO: handle events (create bullets)
+
+            } catch (_: SocketTimeoutException) {
+            }
+        }
+
 
     }
 
