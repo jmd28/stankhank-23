@@ -43,7 +43,7 @@ CONFIDENCE_LIMIT = 0.5
 
 COLLISION_SERVICE = 'http://localhost:5000/'
 
-model = torch.hub.load('ultralytics/yolov5', 'custom', path='new_model.pt')  # local model
+model = torch.hub.load('ultralytics/yolov5', 'custom', path='bestest.pt')  # local model
 
 # each player has a tcp socket, udp port, ip address
 class Player:
@@ -357,21 +357,17 @@ def thread_new_room(room_id):
 
             rx_es = json.loads(packet_data["events"])
             for event in rx_es:
-                if len(event) > 0:
-                    print(event)
                 for key, value in event.items():
-                    if key == EventTypes.BULLET_SPAWN:
+                    if key == EventTypes.BULLET_SPAWN.value:
+                        print("here bullet spawn")
                         events.append(event)
                         # need to create new object
                         bullet_uuid = value['uuid']
-                        o = value['object']
-                        objects[bullet_uuid] = o
                         # event will also be sent to players such that they can spawn the bullet
 
+        print(events)
         # do a single collision check
         colliding_keys = newHandleCollisions(objects)
-        if len(colliding_keys) > 0 and len(colliding_keys[0]) > 0:
-            print(colliding_keys)
         events.append({EventTypes.COLLISION.value: colliding_keys})
 
         # send updated state to all players

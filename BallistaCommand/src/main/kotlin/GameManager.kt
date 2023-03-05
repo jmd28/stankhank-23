@@ -87,7 +87,6 @@ class GameManager(val app: App) {
             val isDeath = ids.any { val obj = uuidToObject[it]; obj is Boolet }
 
             if (isDeath) {
-                println("isDeath happpppened")
                 ids.forEach {
                     val obj = uuidToObject[it];
                     when (obj) {
@@ -97,7 +96,6 @@ class GameManager(val app: App) {
                         }
 
                         is Player -> {
-                            println("oof ouch owie player")
                             obj.lives--
                             if (obj.lives == 0) {
                                 otherPlayers.remove(obj)
@@ -291,7 +289,7 @@ class GameManager(val app: App) {
             app.tx_udp_socket.send(tx_packet)
             // rx
             try {
-                val rx_buffer = ByteArray(4096)
+                val rx_buffer = ByteArray(4096*2)
                 val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
                 app.server_udp_socket.receive(rx_packet)
                 val rx  = JSONObject(String(rx_packet.data))
