@@ -27,7 +27,7 @@ class App : PApplet() {
 
     // multiplayer doodads
 
-    val ENABLE_MULTIPLAYER = true
+    val ENABLE_MULTIPLAYER = false
     var server_udp_port: Int = -1
     val server_udp_socket = DatagramSocket()
     val tx_udp_socket = DatagramSocket()
@@ -36,9 +36,6 @@ class App : PApplet() {
     val ROOM_ID = 1337
     lateinit var server_tcp_socket: Socket
     lateinit var player_uuid: UUID
-
-    // initialise end wave screen handler
-//    val endWave = EndWave(this)
 
     lateinit var audio: Audio
 
@@ -135,12 +132,12 @@ class App : PApplet() {
     }
 
 
-    override fun mousePressed() {
-        when (state) {
-            GAMESTATE.WAVE -> game.mousePressed()
-            else -> advanceGame()
-        }
-    }
+//    override fun mousePressed() {
+//        when (state) {
+//            GAMESTATE.WAVE -> game.mousePressed()
+//            else -> advanceGame()
+//        }
+//    }
 
     fun advanceGame() {
         state = state.next()
@@ -148,25 +145,6 @@ class App : PApplet() {
 //        if (state == GAMESTATE.WAVE)
 //            game.waves.beginWave()
     }
-
-//    private fun landingScreen() {
-//        background(0f,0f,0f)
-//        fill(255)
-//        text("${TITLE}\n\npress anything", displayWidth/2f, displayHeight/2f)
-//    }
-//
-//    private fun prewaveScreen() {
-//        background(0f,0f,0f)
-//        fill(255)
-////        text("wave ${game.waves.wave}", displayWidth/2f, displayHeight/2f)
-//    }
-//
-//    private fun gameoverScreen() {
-//        background(0f,0f,0f)
-//        fill(255)
-//        text("the end", displayWidth/2f, displayHeight/2f)
-//        text("press anything", displayWidth/2f, displayHeight/5f*3)
-//    }
 
     override fun keyPressed(event: KeyEvent?) {
         try {
@@ -182,41 +160,9 @@ class App : PApplet() {
         }
     }
 
-//    var prevMouseX = 0
-//    var mouseDelta = 0f
-//
-////    var mouseD2elta = 0f
-////    var wouldBeNewX = 0
-////    var wouldBeOldX = 0
-//
-//    override fun mouseMoved() {
-//        prevMouseX = mouseX
-//        super.mouseMoved()
-//    }
-
-
-    var oldMouseX = 0
-    var deltaMouse = 0
-    var mouseReset = 0
     // game loop driver fun
     override fun draw() {
-//        val r = surface.native as GLWindow
-//        r.confinePointer(true)
-//        r.isPointerVisible = false
-
         game.draw()
-        // calculate mouse X delta
-//        deltaMouse = mouseX - oldMouseX
-//        oldMouseX = mouseX
-//
-//        mouseReset++
-//        // move mouse back to centre
-//        if (mouseReset == 5) {
-//            r.warpPointer(width / 2, height / 2)
-//            mouseReset = 0
-//            oldMouseX = width / 2
-//        }
-
     }
 
     override fun stop() {

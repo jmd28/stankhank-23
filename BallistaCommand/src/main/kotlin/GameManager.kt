@@ -44,21 +44,11 @@ class GameManager(val app: App) {
         // set some dimensions
         this.gridSize = app.displayWidth / 9f
 
-
-        // add initial set of entities
-//        with(gameObjects) {
-//            clear()
-//            add(
-//                Player()
-//            )
-//        }
-
         // create some players
         repeat(5) {
             val pos = PVector(app.random(1f), app.random(1f)).mult(900f)
             otherPlayers.add(Player(selfGenerated=true, pos = PVector(pos.x, terrainHeight(pos.x, pos.y), pos.y)))
         }
-//        otherPlayers
 
         app.textFont(app.createFont("Courier 10 Pitch", 28f))
 
@@ -66,21 +56,6 @@ class GameManager(val app: App) {
 //        if (!app.audio.music.isPlaying)
 //            app.audio.music()
     }
-
-    fun addObject(obj: GameObject) {
-        toAdd.add(obj)
-    }
-
-    fun removeObject(obj: GameObject) {
-        // explosions go back into the pool
-//        if (obj is Explosion) {
-//            explosions.returnExplosion(obj)
-//        }
-        // other stuff is less costly to create, can be destroyed
-//        toRemove.add(obj)
-    }
-
-//    val input = Input()
 
     // handle key presses in here
     fun keyPressed() {
@@ -93,26 +68,10 @@ class GameManager(val app: App) {
         player.controller?.keyRelease(k)
     }
 
-    // demonstration man tf2
-    fun mousePressed() {
-        when (app.mouseButton) {
-//            PApplet.LEFT -> fire()
-//            PApplet.RIGHT -> det()
-        }
-    }
-
     // delete stuff that goes offscreen
     private fun boundsCheck() {
         // this needs to purge shit
 //        gameObjects.removeIf { it.pos.y>app.displayHeight }
-    }
-
-    private fun physics() {
-
-        // forces
-//        gameObjects.filterIsInstance<Physicsable>().forEach {
-//            it.applyPhysics()
-//        }
     }
 
     // add to the score
@@ -122,8 +81,9 @@ class GameManager(val app: App) {
 
     // check for and handle any collisions
     private fun handleCollisions() {
-
-        // objects we need to check against for collisions
+//         collisions.forEach {
+//               // handle each ent in here
+//         }
 
     }
 
@@ -222,30 +182,8 @@ class GameManager(val app: App) {
         }
 
 
-        // yeet off-screen stuff
+        // yeet off-screen stuff (todo: if arsed)
         boundsCheck()
-
-        //spawn meteorites
-//        waves.spawnEnemies()
-
-        // TODO: handle mouse better than I managed (use awt robot)
-//        val mouseDelta = (app.mouseX - app.pmouseX)
-//        val mouseDelta = app.deltaMouse
-////        println(mouseDelta)
-//        println(mouseDelta)
-//        player.rotation += (mouseDelta*0.0008f)
-
-
-        // handle input actions here, this should go in its own bit
-//        Action.values().forEach {
-//            if (input.actions[it.ordinal]) {
-//                // handle it
-//                println("handle $it")
-//                handleAction(it)
-//            }
-//
-//            otherPlayers.ma
-//        }
 
         // AI!
         otherPlayers.forEach {
@@ -354,48 +292,41 @@ class GameManager(val app: App) {
 
         with(app.gameView) {
 
-            beginDraw()
+        beginDraw()
+        noStroke()
+        // draw bg
+        background(0f, 200f, 255f)
+
+        // world stuff goes here
+        val boxSize = 30f
+        pushMatrix()
+
+        player.pos.y = terrainHeight(player.pos.x, player.pos.z) - boxSize
+        otherPlayers.forEach { it.pos.y = terrainHeight(it.pos.x, it.pos.z) - boxSize }
+
+        val cameraPos = player.pos.copy()
+        // move up (in line with player head)
+        cameraPos.y -= 75f
+        val lookAt = PVector.add(cameraPos, player.look)
+
+        camera(
+            // camera location
+            cameraPos.x, cameraPos.y, cameraPos.z,
+            // where it's pointing
+            lookAt.x, lookAt.y, lookAt.z,
+            // which way is up
+            0f, 1f, 0f
+        )
 
 
-//            noClip()
-            noStroke()
-            // draw bg
-            background(0f, 200f, 255f)
+        directionalLight(200f, 200f, 200f, 0.5f, 1f, 0.2f)
+        ambientLight(55f, 55f, 55f)
 
-            // world stuff goes here
-
-
-//            noFill()
-//            lights()f)
-
-            val boxSize = 30f
-            pushMatrix()
-
-            player.pos.y = terrainHeight(player.pos.x, player.pos.z) - boxSize
-            otherPlayers.forEach { it.pos.y = terrainHeight(it.pos.x, it.pos.z) - boxSize }
-
-            val cameraPos = player.pos.copy()
-            // move up (in line with player head)
-            cameraPos.y -= 75f
-            val lookAt = PVector.add(cameraPos, player.look)
-
-            camera(
-                // camera location
-                cameraPos.x, cameraPos.y, cameraPos.z,
-                // where it's pointing
-                lookAt.x, lookAt.y, lookAt.z,
-                // which way is up
-                0f, 1f, 0f
-            )
-
-            directionalLight(200f, 200f, 200f, 0.5f, 1f, 0.2f)
-            ambientLight(55f, 55f, 55f)
-
-            fun terrainVertex(x: Int, z: Int) {
-                val x = x * 30f
-                val z = z * 30f
-                vertex(x, terrainHeight(x, z) - boxSize, z)
-            }
+        fun terrainVertex(x: Int, z: Int) {
+            val x = x * 30f
+            val z = z * 30f
+            vertex(x, terrainHeight(x, z) - boxSize, z)
+        }
 
             // draw the world as a mesh of triangles
             (0..30).forEach { i ->
@@ -463,15 +394,6 @@ class GameManager(val app: App) {
             popStyle()
         }
 
-    }
-
-    // the illusion of control
-    fun pause() {
-
-    }
-
-    fun resume() {
-        previous = System.currentTimeMillis()
     }
 
     // game loop driver fun
