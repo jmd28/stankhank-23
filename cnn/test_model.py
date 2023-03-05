@@ -37,8 +37,8 @@ cv2.rectangle(img, (x_position, y_position), (x_position+width, y_position+heigh
 results = model([img], size=900) # batch of images
 
 # Results
-results.print()  
-results.save()  # or .show()
+# results.print()  
+# results.save()  # or .show()
 
-results.xyxy[0]  # im1 predictions (tensor)
-print(results.pandas().xyxy[0])  # im1 predictions (pandas)
+# results.xyxy[0]  # im1 predictions (tensor)
+print(results.pandas().xyxy[0].to_dict(orient='records'))  # im1 predictions (pandas)
