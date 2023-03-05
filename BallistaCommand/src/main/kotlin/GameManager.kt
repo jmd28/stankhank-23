@@ -1,7 +1,14 @@
+import org.json.JSONArray
+import org.json.JSONObject
 import processing.core.PApplet
 import processing.core.PConstants
+import processing.core.PConstants.P2D
 import processing.core.PConstants.P3D
 import processing.core.PVector
+import java.net.DatagramPacket
+import java.net.InetAddress
+import java.net.SocketTimeoutException
+import java.util.UUID
 import kotlin.math.PI
 
 // this runs the actual game
@@ -14,15 +21,17 @@ class GameManager(val app: App) {
     // we will divide the screen into vertical strips to aid placement
     var gridSize = 0f
 
-    lateinit var quadtree: Quadtree
-
     var gameObjects = mutableListOf<GameObject>()
 
     val booletPool = ObjectPool(app) {
         Boolet()
     }
 
+    // TODO: use
+    var uuidToObject = mutableMapOf<UUID, GameObject>()
+
     val bullets = mutableListOf<Boolet>()
+    val otherPlayers = mutableListOf<Player>()
 
     // use these lists where concurrent modification might get funky
     // objects to add after a trip through the game loop
@@ -31,14 +40,15 @@ class GameManager(val app: App) {
     // objects to remove after a trip through the game loop
     private var toRemove = mutableListOf<GameObject>()
 
+    val TIME_BETWEEN_PACKET_UPDATE = 100
+    var timeLastPacket = System.currentTimeMillis()
+
     // run this at the beginning of the game
     fun setup() {
 
         // set some dimensions
         this.gridSize = app.displayWidth / 9f
 
-        // use quadtree to speed up collision detection
-        quadtree = Quadtree(0, BoundingBox(0f, 0f, app.displayWidth.toFloat(), app.displayHeight.toFloat()))
 
         // add initial set of entities
 //        with(gameObjects) {
@@ -47,6 +57,13 @@ class GameManager(val app: App) {
 //                Player()
 //            )
 //        }
+
+        // create some players
+        repeat(5) {
+            val pos = PVector(app.random(1f), app.random(1f)).mult(900f)
+            otherPlayers.add(Player(pos = PVector(pos.x, terrainHeight(pos.x, pos.y), pos.y)))
+        }
+//        otherPlayers
 
         app.textFont(app.createFont("Courier 10 Pitch", 28f))
 
@@ -68,17 +85,17 @@ class GameManager(val app: App) {
 //        toRemove.add(obj)
     }
 
-    val input = Input()
+//    val input = Input()
 
     // handle key presses in here
     fun keyPressed() {
         val k = app.key.code
-        input.keyPress(k)
+        player.controller.keyPress(k)
     }
 
     fun keyReleased() {
         val k = app.key.code
-        input.keyRelease(k)
+        player.controller.keyRelease(k)
     }
 
     // demonstration man tf2
@@ -112,64 +129,83 @@ class GameManager(val app: App) {
     private fun handleCollisions() {
 
         // objects we need to check against for collisions
-        val returnObjects: MutableList<Collidable> = ArrayList()
 
-        gameObjects.filterIsInstance<Collidable>().forEach {
-            returnObjects.clear()
-            quadtree.retrieve(returnObjects, it)
-
-            // objects to check against
-//            returnObjects
-//                .filter { obj -> obj.circleCircle(it) }
-//                .forEach { obj ->
-//                    // handle in both directions
-//                    obj.onCollision(it)
-//                    it.onCollision(obj)
-//                }
-        }
     }
 
     // the player entity
     val player = Player(pos = PVector(70f, 0f, 120f))
-    val MVMT_SPEED = 0.03f
+    val MVMT_SPEED = 0.06f
 
     // game over check
     fun gameOver(): Boolean = false
 
-    fun handleAction(action: Action) {
+    fun Player.handleActions() {
+        Action.values().forEach {
+            if (controller.actions[it.ordinal]) {
+                handleAction(it)
+            }
+        }
+    }
+
+    // how
+    fun Player.handleAction(action: Action) {
+//        println("actio $action")
         when (action) {
             Action.LOOK_LEFT -> {
-                player.rotation -= 0.002f
+                rotation -= 0.002f
             }
 
             Action.LOOK_RIGHT -> {
-                player.rotation += 0.002f
+                rotation += 0.002f
             }
 
             // TODO: make this add a unit vector in each component, then normalise and mul by speed
             Action.FORWARD -> {
-                player.pos.add(player.look.mult(MVMT_SPEED))
+                pos.add(look.mult(MVMT_SPEED))
             }
 
             Action.BACKWARD -> {
-                player.pos.sub(player.look.mult(MVMT_SPEED))
+                pos.sub(look.mult(MVMT_SPEED))
             }
 
             Action.RIGHT -> {
-                player.pos.add(player.look.cross(PVector(0f, 1f, 0f)).mult(MVMT_SPEED))
+                pos.add(look.cross(PVector(0f, 1f, 0f)).mult(MVMT_SPEED))
             }
 
             Action.LEFT -> {
-                player.pos.sub(player.look.cross(PVector(0f, 1f, 0f)).mult(MVMT_SPEED))
+                pos.sub(look.cross(PVector(0f, 1f, 0f)).mult(MVMT_SPEED))
             }
 
             Action.PEW -> {
+//                println("isOnCooldown $isOnCooldown")
+                if (isOnCooldown) return
+
                 val boolet = booletPool.getObject()
-                boolet.pos.set(PVector.add(player.pos,  player.look.mult(5f)))
-                boolet.vel.set(player.look.mult(0.3f))
+                boolet.pos.set(PVector.add(pos, look.mult(5f)))
+                boolet.vel.set(look.mult(0.3f))
+                boolet.expiresAt = System.currentTimeMillis() + BOOLET_LIFETIME
                 bullets.add(boolet)
+                cooldownEndsAt = System.currentTimeMillis() + BOOLET_COOLDOWN
             }
         }
+    }
+
+    fun Player.ai() {
+        controller.setAction(Action.FORWARD, true)
+
+        val rng = app.random(1f)
+//        println(rng)
+        when {
+            (rng<0.05f) -> {
+                controller.setAction(Action.LOOK_LEFT, true)
+                controller.setAction(Action.LOOK_RIGHT, false)
+            }
+            (rng>0.95f) -> {
+                controller.setAction(Action.LOOK_RIGHT, true)
+                controller.setAction(Action.LOOK_LEFT, false)
+            }
+        }
+
     }
 
     // update game state each tick
@@ -183,15 +219,6 @@ class GameManager(val app: App) {
             return
         }
 
-        // update quadtree
-        quadtree.clear()
-
-        // collision states
-        gameObjects.filterIsInstance<Collidable>().forEach {
-            // update hitboxes
-            it.updateBounds()
-            quadtree.insert(it)
-        }
 
         // yeet off-screen stuff
         boundsCheck()
@@ -208,19 +235,38 @@ class GameManager(val app: App) {
 
 
         // handle input actions here, this should go in its own bit
-        Action.values().forEach {
-            if (input.actions[it.ordinal]) {
-                // handle it
-                println("handle $it")
-                handleAction(it)
-            }
+//        Action.values().forEach {
+//            if (input.actions[it.ordinal]) {
+//                // handle it
+//                println("handle $it")
+//                handleAction(it)
+//            }
+//
+//            otherPlayers.ma
+//        }
+
+        // AI!
+        otherPlayers.forEach {
+            it.ai()
+        }
+
+        player.handleActions()
+        otherPlayers.forEach {
+            it.handleActions()
         }
 
         // update bullets
-        bullets.forEach{
+        val toRemove = mutableListOf<Boolet>()
+        bullets.forEach {
             it.pos.add(it.vel)
             it.pos.y = terrainHeight(it.pos.x, it.pos.z) - 40f
+            if (System.currentTimeMillis() > it.expiresAt) {
+                booletPool.returnObject(it)
+                toRemove.add(it)
+            }
         }
+
+        bullets.removeAll(toRemove)
 
         // apply forces to everything that cares
 //        physics()
@@ -239,19 +285,63 @@ class GameManager(val app: App) {
 //        toAdd.clear()
 //        toRemove.clear()
 
+        // broadcast objects + events (if any) to server
+        // get player pos
+        // get bullet pos'
+        // smash into json string
+
+
+        if (System.currentTimeMillis() >= timeLastPacket + TIME_BETWEEN_PACKET_UPDATE && app.ENABLE_MULTIPLAYER) {
+            timeLastPacket = System.currentTimeMillis()
+            // tx state and rx state
+            // tx
+            //val tx_buffer = ("{" +
+            //        "\"events\": [], \"objects\": {\"${app.player_uuid}\": {\"x\": ${player.pos.x}, \"y\": ${player.pos.y}," +
+            //        "\"rot\": ${player.rotation}, \"o_type\": \"PLAYER\"" +
+            //        "}}}").toByteArray()
+
+            val tx_json = JSONObject(mapOf(
+                "events" to JSONArray(),
+                "objects" to mapOf(
+                    app.player_uuid to mapOf(
+                        "x" to player.pos.x,
+                        "y" to player.pos.y,
+                        "pos" to player.rotation
+                    )
+                )
+            ))
+
+            val tx_buffer = tx_json.toString().toByteArray()
+            val tx_packet = DatagramPacket(tx_buffer, tx_buffer.size, InetAddress.getByName(app.HOST), app.server_udp_port)
+            app.tx_udp_socket.send(tx_packet)
+            // rx
+            try {
+                val rx_buffer = ByteArray(4096)
+                val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
+                app.server_udp_socket.receive(rx_packet)
+                val rx = JSONObject(String(rx_packet.data))
+                // TODO: update other players + bullets positions
+                // TODO: handle events (create bullets)
+
+            } catch (_: SocketTimeoutException) {
+            }
+        }
+
+
     }
 
     val noiseCoeff = 0.01f
     fun terrainHeight(x: Float, y: Float) = -100 * app.noise(x * noiseCoeff, y * noiseCoeff)
 
-//    val p2 = app.createGraphics(app.)
 
     // draw all the things
     fun render() {
 
+        with(app.gameView) {
+
+            beginDraw()
 
 
-        with(app) {
 //            noClip()
             noStroke()
             // draw bg
@@ -267,6 +357,8 @@ class GameManager(val app: App) {
             pushMatrix()
 
             player.pos.y = terrainHeight(player.pos.x, player.pos.z) - boxSize
+            otherPlayers.forEach { it.pos.y = terrainHeight(it.pos.x, it.pos.z) - boxSize }
+
             val cameraPos = player.pos.copy()
             // move up (in line with player head)
             cameraPos.y -= 75f
@@ -281,27 +373,13 @@ class GameManager(val app: App) {
                 0f, 1f, 0f
             )
 
-//            clip(app.mouseX.toFloat(), app.mouseY.toFloat(), 100f, 100f)
+            directionalLight(200f, 200f, 200f, 0.5f, 1f, 0.2f)
+            ambientLight(55f, 55f, 55f)
 
-//            lights()
-            ambient(0.1f)
-            directionalLight(255f, 255f, 255f, 0.5f,1f,0.2f)
-
-            // draw a world
-            val worldSize = 100
-            // draw the world with boxes
-//            (0..9999).forEach {
-//                pushMatrix()
-//                    val x = (it / worldSize) * boxSize
-//                    val y = (it % worldSize) * boxSize
-//                    translate(x , terrainHeight(x, y) - boxSize / 2, y)
-//                    box(boxSize)
-//                popMatrix()
-//            }
             fun terrainVertex(x: Int, z: Int) {
                 val x = x * 30f
                 val z = z * 30f
-                vertex(x, terrainHeight(x, z) - boxSize , z)
+                vertex(x, terrainHeight(x, z) - boxSize, z)
             }
 
             // draw the world as a mesh of triangles
@@ -309,14 +387,14 @@ class GameManager(val app: App) {
                 (0..30).forEach { j ->
                     beginShape()
                     terrainVertex(i, j)
-                    terrainVertex(i+1, j)
-                    terrainVertex(i, j+1)
+                    terrainVertex(i + 1, j)
+                    terrainVertex(i, j + 1)
                     endShape()
 
                     beginShape()
-                    terrainVertex(i+1, j)
-                    terrainVertex(i+1, j+1)
-                    terrainVertex(i, j+1)
+                    terrainVertex(i + 1, j)
+                    terrainVertex(i + 1, j + 1)
+                    terrainVertex(i, j + 1)
                     endShape()
                 }
             }
@@ -325,30 +403,50 @@ class GameManager(val app: App) {
             bullets.forEach {
                 push()
                 translate(it.pos.x, it.pos.y, it.pos.z)
-                fill(color(255f,0f,255f))
+                fill(color(255f, 0f, 255f))
                 sphere(10f)
+                pop()
+            }
+
+            // draw other players
+            otherPlayers.forEach {
+                push()
+                translate(it.pos.x, it.pos.y -  boxSize / 2f, it.pos.z)
+                fill(color(255f, 255f, 0f))
+                box(35f)
                 pop()
             }
 
             popMatrix()
 
-            // hud stuff goes here
-
-//            rect(0f, height*.9f, width.toFloat(), height*.1f)
-
-
-            // xhair
-            stroke(40)
-            line(width / 2f, 0f, width / 2f, displayHeight.toFloat())
-            line(0f, height / 2f, displayWidth.toFloat(), height / 2f)
-
-
-            text("FPS $frameRate", 10f, 90f)
+            endDraw()
         }
 
-        // quadtree
-//        quadtree.draw(app)
-//        gameObjects.filterIsInstance<Collidable>().forEach { it.drawBoundingBox(app) }
+        with(app.hudView) {
+            beginDraw()
+
+            // hud stuff goes here
+            noStroke()
+            rect(0f, height * .9f, width.toFloat(), height * .1f)
+            // xhair
+            stroke(40)
+            line(width / 2f, 0f, width / 2f, height.toFloat())
+            line(0f, height / 2f, width.toFloat(), height / 2f)
+
+            text("FPS ${app.frameRate}", 10f, 90f)
+
+            endDraw()
+        }
+
+        with(app) {
+            image(gameView, 0f, 0f)
+
+            pushStyle()
+            tint(255f, 255f, 255f, 100f)
+            image(hudView, 0f, 0f)
+            popStyle()
+        }
+
     }
 
     // the illusion of control

@@ -14,6 +14,10 @@ data class Input(
 
     private fun getAction(keyCode: Int) = bindings[keyCode]
 
+    fun setAction(a: Action, isHappening: Boolean) {
+        actions[a.ordinal] = isHappening
+    }
+
     fun keyPress(k: Int) {
         println(bindings.keys)
         println(k)

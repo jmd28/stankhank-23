@@ -75,6 +75,8 @@
       </library>
     </orderEntry>
     <orderEntry type="library" name="KotlinJavaRuntime" level="project" />
+    <orderEntry type="library" name="jl1.0.1" level="project" />
+    <orderEntry type="library" name="json-20220924" level="project" />
     <orderEntry type="library" name="core" level="project" />
   </component>
 </module>
