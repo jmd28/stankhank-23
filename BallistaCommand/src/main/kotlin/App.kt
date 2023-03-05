@@ -1,14 +1,13 @@
-import com.jogamp.newt.opengl.GLWindow
-
+import org.json.JSONObject
 import processing.core.PApplet
 import processing.core.PConstants
 import processing.core.PGraphics
-import processing.core.PImage
-import processing.data.JSONObject
+import processing.core.PVector
 import processing.event.KeyEvent
-import java.lang.Exception
+import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.Socket
+import java.net.SocketTimeoutException
 import java.util.*
 
 /**
@@ -36,10 +35,7 @@ class App : PApplet() {
     val HOST_TCP_PORT = 21450
     val ROOM_ID = 1337
     lateinit var server_tcp_socket: Socket
-    lateinit var player_uuid: String
-
-    // initialise end wave screen handler
-//    val endWave = EndWave(this)
+    lateinit var player_uuid: UUID
 
     lateinit var audio: Audio
 
@@ -78,15 +74,55 @@ class App : PApplet() {
                 msg = scanner.nextLine()
                 break
             }
-            val json_msg = org.json.JSONObject(msg)
+            val json_msg = JSONObject(msg)
             server_udp_port = json_msg["server_port"] as Int
-            player_uuid = json_msg["player"] as String
+            player_uuid = UUID.fromString(json_msg["player"] as String)
             println(player_uuid)
 
             // open local udp socket and connect to remove server udp port
             val client_udp_port = server_udp_socket.localPort
             // send our port to server
             server_tcp_socket.outputStream.write(("{\"port\":$client_udp_port}").toByteArray())
+
+            // read initial state and set players
+            try {
+                val rx_buffer = ByteArray(4096)
+                val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
+                server_udp_socket.receive(rx_packet)
+                val rx: JSONObject = JSONObject(String(rx_packet.data))
+
+                val os: JSONObject = rx["objects"] as JSONObject
+                val iter: Iterator<String> = os.keys()
+                while (iter.hasNext()) {
+                    val key = UUID.fromString(iter.next())
+                    val value: JSONObject = os.get(key.toString()) as JSONObject
+
+                    val x = value["x"].toString().toFloat()
+                    val y = value["y"].toString().toFloat()
+                    val rotation = value["rot"].toString().toFloat()
+
+                    if (key == player_uuid) {
+                        game.player.uuid = key
+                        game.player.pos.x = x
+                        game.player.pos.y = y
+                        game.player.rotation = rotation
+                    } else {
+                        // create new players
+                        game.otherPlayers.add(Player(
+                            PVector(x, y),
+                            rotation,
+                            null,
+                            key,
+                            selfGenerated = false
+                        ))
+                    }
+                }
+
+                // TODO: update other players + bullets positions
+                // TODO: handle events (create bullets)
+
+            } catch (_: SocketTimeoutException) {
+            }
         }
 
     }
@@ -96,12 +132,12 @@ class App : PApplet() {
     }
 
 
-    override fun mousePressed() {
-        when (state) {
-            GAMESTATE.WAVE -> game.mousePressed()
-            else -> advanceGame()
-        }
-    }
+//    override fun mousePressed() {
+//        when (state) {
+//            GAMESTATE.WAVE -> game.mousePressed()
+//            else -> advanceGame()
+//        }
+//    }
 
     fun advanceGame() {
         state = state.next()
@@ -110,71 +146,23 @@ class App : PApplet() {
 //            game.waves.beginWave()
     }
 
-//    private fun landingScreen() {
-//        background(0f,0f,0f)
-//        fill(255)
-//        text("${TITLE}\n\npress anything", displayWidth/2f, displayHeight/2f)
-//    }
-//
-//    private fun prewaveScreen() {
-//        background(0f,0f,0f)
-//        fill(255)
-////        text("wave ${game.waves.wave}", displayWidth/2f, displayHeight/2f)
-//    }
-//
-//    private fun gameoverScreen() {
-//        background(0f,0f,0f)
-//        fill(255)
-//        text("the end", displayWidth/2f, displayHeight/2f)
-//        text("press anything", displayWidth/2f, displayHeight/5f*3)
-//    }
-
     override fun keyPressed(event: KeyEvent?) {
         try {
             game.keyPressed()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
         }
     }
 
     override fun keyReleased() {
-        game.keyReleased()
+        try {
+            game.keyReleased()
+        } catch (_: Exception) {
+        }
     }
 
-//    var prevMouseX = 0
-//    var mouseDelta = 0f
-//
-////    var mouseD2elta = 0f
-////    var wouldBeNewX = 0
-////    var wouldBeOldX = 0
-//
-//    override fun mouseMoved() {
-//        prevMouseX = mouseX
-//        super.mouseMoved()
-//    }
-
-
-    var oldMouseX = 0
-    var deltaMouse = 0
-    var mouseReset = 0
     // game loop driver fun
     override fun draw() {
-//        val r = surface.native as GLWindow
-//        r.confinePointer(true)
-//        r.isPointerVisible = false
-
         game.draw()
-        // calculate mouse X delta
-//        deltaMouse = mouseX - oldMouseX
-//        oldMouseX = mouseX
-//
-//        mouseReset++
-//        // move mouse back to centre
-//        if (mouseReset == 5) {
-//            r.warpPointer(width / 2, height / 2)
-//            mouseReset = 0
-//            oldMouseX = width / 2
-//        }
-
     }
 
     override fun stop() {

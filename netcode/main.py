@@ -47,12 +47,13 @@ class Player:
 
 
 class ObjectType(Enum):
-    PLAYER = "PLAYER"
-    BULLET = "BULLET"
+    PLAYER = 0
+    BULLET = 1
 
 
 class EventTypes(Enum):
     BULLET_SPAWN = "bullet_spawn"
+    COLLISION = "collision"
 
 
 class Object:
@@ -61,7 +62,6 @@ class Object:
         self.y = y
         self.rot = rot
         self.o_type = o_type
-
 
 def rx_json(socket):
     while True:
@@ -83,7 +83,6 @@ def tx_json_udp(socket, address, port, json_data):
 def rx_json_udp(socket):
     data, addr = socket.recvfrom(4096)
     data = data.decode(ENCODING).rstrip('\x00').rstrip('\n')
-    print(data)
     json_data = json.loads(data)
     json_data['addr'] = addr
     return json_data
@@ -118,7 +117,7 @@ def thread_on_new_client(client_socket, addr):
 # handles a game
 def thread_new_room(room_id):
     # wait 20s before starting game
-    time.sleep(2)
+    time.sleep(5)
 
     # room has array of sockets and ip addr, one for each player
     room = rooms[room_id]
@@ -196,18 +195,19 @@ def thread_new_room(room_id):
     objects = {}
     events = []
     for p_uuid in players.keys():
-        o = Object(
-            x=random.randrange(0, GAME_WIDTH),
-            y=random.randrange(0, GAME_HEIGHT),
-            o_type=ObjectType.PLAYER,
-            rot=random.randrange(0, int(2 * pi))
-        )
+        o = {"x": float(random.randrange(0, GAME_WIDTH)),
+             "y": float(random.randrange(0,GAME_HEIGHT)),
+             "o_type": float(ObjectType.PLAYER.value),
+             "rot": float(random.randrange(0, int(2 * pi)))}
         objects[p_uuid] = o
 
     state = {
         "events": events,
         "objects": objects
     }
+
+    for player in players.values():
+        tx_json_udp(tx_udp_socket, player.ip_addr, player.udp_port, state)
 
     """
     STATE
@@ -278,7 +278,7 @@ def thread_new_room(room_id):
 
 
     while True:
-        new_events = []
+        events = []
         if time.time_ns() > timeSinceLastCollision + 5e6:  # 5 ,ms
             timeSinceLastCollision = time.time_ns()
             t = threading.Thread(target=handleCollisions, args=(objects, q_service))
@@ -291,16 +291,17 @@ def thread_new_room(room_id):
 
         if collisions is not None:
             # then add a collision event
-            event = {"collision": [collisions]}
-            new_events.append(event)
+            event = {EventTypes.COLLISION.value: collisions}
+            events.append(event)
 
         # read in packets every ms
         # every 5ms, compute and resolve collisions
         PACKET_COLLECT_DELAY_NS = 1e6
         # read in packets for like 1ms
         start_t = time.time_ns()  # ns
-        while time.time_ns() < start_t + PACKET_COLLECT_DELAY_NS:
+        if time.time_ns() < start_t + PACKET_COLLECT_DELAY_NS:
             packet_data = rx_json_udp(rx_udp_socket)
+            print(packet_data)
             # contains objects [], events []
             # update objects via uuid with given objects
             rx_os = packet_data["objects"]
@@ -311,7 +312,7 @@ def thread_new_room(room_id):
             for event in rx_es:
                 for key, value in event.items():
                     if key == EventTypes.BULLET_SPAWN:
-                        new_events.append(event)
+                        events.append(event)
                         # need to create new object
                         bullet_uuid = value['uuid']
                         o = value['object']
@@ -319,7 +320,7 @@ def thread_new_room(room_id):
                         # event will also be sent to players such that they can spawn the bullet
 
         # send updated state to all players
-        state['events'] = new_events
+        state['events'] = events
         for player in players.values():
             tx_json_udp(tx_udp_socket, player.ip_addr, player.udp_port, state)
 

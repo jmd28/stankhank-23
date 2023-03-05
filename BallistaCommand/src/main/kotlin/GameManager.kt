@@ -1,15 +1,10 @@
 import org.json.JSONArray
 import org.json.JSONObject
-import processing.core.PApplet
-import processing.core.PConstants
-import processing.core.PConstants.P2D
-import processing.core.PConstants.P3D
 import processing.core.PVector
 import java.net.DatagramPacket
 import java.net.InetAddress
 import java.net.SocketTimeoutException
 import java.util.UUID
-import kotlin.math.PI
 
 // this runs the actual game
 class GameManager(val app: App) {
@@ -24,7 +19,7 @@ class GameManager(val app: App) {
     var gameObjects = mutableListOf<GameObject>()
 
     val booletPool = ObjectPool(app) {
-        Boolet()
+        Boolet(selfGenerated=true)
     }
 
     // TODO: use
@@ -49,21 +44,11 @@ class GameManager(val app: App) {
         // set some dimensions
         this.gridSize = app.displayWidth / 9f
 
-
-        // add initial set of entities
-//        with(gameObjects) {
-//            clear()
-//            add(
-//                Player()
-//            )
-//        }
-
         // create some players
         repeat(5) {
             val pos = PVector(app.random(1f), app.random(1f)).mult(900f)
-            otherPlayers.add(Player(pos = PVector(pos.x, terrainHeight(pos.x, pos.y), pos.y)))
+            otherPlayers.add(Player(selfGenerated=true, pos = PVector(pos.x, terrainHeight(pos.x, pos.y), pos.y)))
         }
-//        otherPlayers
 
         app.textFont(app.createFont("Courier 10 Pitch", 28f))
 
@@ -72,52 +57,21 @@ class GameManager(val app: App) {
 //            app.audio.music()
     }
 
-    fun addObject(obj: GameObject) {
-        toAdd.add(obj)
-    }
-
-    fun removeObject(obj: GameObject) {
-        // explosions go back into the pool
-//        if (obj is Explosion) {
-//            explosions.returnExplosion(obj)
-//        }
-        // other stuff is less costly to create, can be destroyed
-//        toRemove.add(obj)
-    }
-
-//    val input = Input()
-
     // handle key presses in here
     fun keyPressed() {
         val k = app.key.code
-        player.controller.keyPress(k)
+        player.controller?.keyPress(k)
     }
 
     fun keyReleased() {
         val k = app.key.code
-        player.controller.keyRelease(k)
-    }
-
-    // demonstration man tf2
-    fun mousePressed() {
-        when (app.mouseButton) {
-//            PApplet.LEFT -> fire()
-//            PApplet.RIGHT -> det()
-        }
+        player.controller?.keyRelease(k)
     }
 
     // delete stuff that goes offscreen
     private fun boundsCheck() {
         // this needs to purge shit
 //        gameObjects.removeIf { it.pos.y>app.displayHeight }
-    }
-
-    private fun physics() {
-
-        // forces
-//        gameObjects.filterIsInstance<Physicsable>().forEach {
-//            it.applyPhysics()
-//        }
     }
 
     // add to the score
@@ -127,19 +81,23 @@ class GameManager(val app: App) {
 
     // check for and handle any collisions
     private fun handleCollisions() {
-
-        // objects we need to check against for collisions
+//         collisions.forEach {
+//               // handle each ent in here
+//         }
 
     }
 
     // the player entity
-    val player = Player(pos = PVector(70f, 0f, 120f))
+    val player = Player(selfGenerated = true, pos = PVector(70f, 0f, 120f))
     val MVMT_SPEED = 0.06f
 
     // game over check
     fun gameOver(): Boolean = false
 
     fun Player.handleActions() {
+        if (controller == null) {
+            return
+        }
         Action.values().forEach {
             if (controller.actions[it.ordinal]) {
                 handleAction(it)
@@ -152,11 +110,11 @@ class GameManager(val app: App) {
 //        println("actio $action")
         when (action) {
             Action.LOOK_LEFT -> {
-                rotation -= 0.002f
+                rotation -= 0.001f
             }
 
             Action.LOOK_RIGHT -> {
-                rotation += 0.002f
+                rotation += 0.001f
             }
 
             // TODO: make this add a unit vector in each component, then normalise and mul by speed
@@ -176,14 +134,17 @@ class GameManager(val app: App) {
                 pos.sub(look.cross(PVector(0f, 1f, 0f)).mult(MVMT_SPEED))
             }
 
+
             Action.PEW -> {
-//                println("isOnCooldown $isOnCooldown")
                 if (isOnCooldown) return
 
-                val boolet = booletPool.getObject()
-                boolet.pos.set(PVector.add(pos, look.mult(5f)))
-                boolet.vel.set(look.mult(0.3f))
-                boolet.expiresAt = System.currentTimeMillis() + BOOLET_LIFETIME
+                val boolet = booletPool.getObject().also {
+                    it.pos.set(PVector.add(pos, look.mult(5f)))
+                    it.vel.set(look.mult(0.3f))
+                    it.expiresAt = System.currentTimeMillis() + BOOLET_LIFETIME
+                    uuidToObject[it.uuid] = it
+                }
+
                 bullets.add(boolet)
                 cooldownEndsAt = System.currentTimeMillis() + BOOLET_COOLDOWN
             }
@@ -191,18 +152,19 @@ class GameManager(val app: App) {
     }
 
     fun Player.ai() {
-        controller.setAction(Action.FORWARD, true)
+        controller?.setAction(Action.FORWARD, true)
 
         val rng = app.random(1f)
 //        println(rng)
         when {
-            (rng<0.05f) -> {
-                controller.setAction(Action.LOOK_LEFT, true)
-                controller.setAction(Action.LOOK_RIGHT, false)
+            (rng < 0.001f) -> {
+                controller?.setAction(Action.LOOK_LEFT, true)
+                controller?.setAction(Action.LOOK_RIGHT, false)
             }
-            (rng>0.95f) -> {
-                controller.setAction(Action.LOOK_RIGHT, true)
-                controller.setAction(Action.LOOK_LEFT, false)
+
+            (rng > 0.999f) -> {
+                controller?.setAction(Action.LOOK_RIGHT, true)
+                controller?.setAction(Action.LOOK_LEFT, false)
             }
         }
 
@@ -220,30 +182,8 @@ class GameManager(val app: App) {
         }
 
 
-        // yeet off-screen stuff
+        // yeet off-screen stuff (todo: if arsed)
         boundsCheck()
-
-        //spawn meteorites
-//        waves.spawnEnemies()
-
-        // TODO: handle mouse better than I managed (use awt robot)
-//        val mouseDelta = (app.mouseX - app.pmouseX)
-//        val mouseDelta = app.deltaMouse
-////        println(mouseDelta)
-//        println(mouseDelta)
-//        player.rotation += (mouseDelta*0.0008f)
-
-
-        // handle input actions here, this should go in its own bit
-//        Action.values().forEach {
-//            if (input.actions[it.ordinal]) {
-//                // handle it
-//                println("handle $it")
-//                handleAction(it)
-//            }
-//
-//            otherPlayers.ma
-//        }
 
         // AI!
         otherPlayers.forEach {
@@ -265,31 +205,10 @@ class GameManager(val app: App) {
                 toRemove.add(it)
             }
         }
-
         bullets.removeAll(toRemove)
-
-        // apply forces to everything that cares
-//        physics()
 
         // check for and handle collisions
         handleCollisions()
-
-        // ballista cooldown, explosions growing etc.
-//        gameObjects.filterIsInstance<Updateable>().forEach { it.update() }
-
-        // update entities list with any changes
-//        gameObjects.removeAll(toRemove)
-//        gameObjects.addAll(toAdd)
-
-        // wipe entity lists
-//        toAdd.clear()
-//        toRemove.clear()
-
-        // broadcast objects + events (if any) to server
-        // get player pos
-        // get bullet pos'
-        // smash into json string
-
 
         if (System.currentTimeMillis() >= timeLastPacket + TIME_BETWEEN_PACKET_UPDATE && app.ENABLE_MULTIPLAYER) {
             timeLastPacket = System.currentTimeMillis()
@@ -300,26 +219,60 @@ class GameManager(val app: App) {
             //        "\"rot\": ${player.rotation}, \"o_type\": \"PLAYER\"" +
             //        "}}}").toByteArray()
 
-            val tx_json = JSONObject(mapOf(
-                "events" to JSONArray(),
-                "objects" to mapOf(
-                    app.player_uuid to mapOf(
-                        "x" to player.pos.x,
-                        "y" to player.pos.y,
-                        "pos" to player.rotation
-                    )
+            // this is wack
+            val objectData = mutableMapOf<UUID, Map<String, Float>>()
+            objectData.putAll(bullets.map {
+                it.uuid to mapOf(
+                    "x" to it.pos.x,
+                    "y" to it.pos.y,
+                    "rot" to 1f,
+                    "o_type" to 1f
                 )
-            ))
+            })
+            objectData.put(
+                app.player_uuid, mapOf(
+                    "x" to player.pos.x,
+                    "y" to player.pos.y,
+                    "rot" to player.rotation,
+                    "o_type" to 0f
+                )
+            )
+            val tx_json = JSONObject(
+                mapOf(
+                    "events" to JSONArray(),
+                    "objects" to objectData
+                )
+            )
 
             val tx_buffer = tx_json.toString().toByteArray()
-            val tx_packet = DatagramPacket(tx_buffer, tx_buffer.size, InetAddress.getByName(app.HOST), app.server_udp_port)
+            val tx_packet =
+                DatagramPacket(tx_buffer, tx_buffer.size, InetAddress.getByName(app.HOST), app.server_udp_port)
             app.tx_udp_socket.send(tx_packet)
             // rx
             try {
                 val rx_buffer = ByteArray(4096)
                 val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
                 app.server_udp_socket.receive(rx_packet)
-                val rx = JSONObject(String(rx_packet.data))
+                val rx: JSONObject = JSONObject(String(rx_packet.data))
+
+                val os: JSONObject = rx["objects"] as JSONObject
+                val iter: Iterator<String> = os.keys()
+                while (iter.hasNext()) {
+                    val key = UUID.fromString(iter.next())
+                    val value: JSONObject = os.get(key.toString()) as JSONObject
+
+                    val x = value["x"].toString().toFloat()
+                    val y = value["y"].toString().toFloat()
+                    val rotation = value["rot"].toString().toFloat()
+
+                    val p: GameObject = uuidToObject[key] ?: continue
+                    if (!p.selfGenerated) {
+                        p.pos.x = x
+                        p.pos.y = y
+                        p.rotation = rotation
+                    }
+                }
+
                 // TODO: update other players + bullets positions
                 // TODO: handle events (create bullets)
 
@@ -339,48 +292,41 @@ class GameManager(val app: App) {
 
         with(app.gameView) {
 
-            beginDraw()
+        beginDraw()
+        noStroke()
+        // draw bg
+        background(0f, 200f, 255f)
+
+        // world stuff goes here
+        val boxSize = 30f
+        pushMatrix()
+
+        player.pos.y = terrainHeight(player.pos.x, player.pos.z) - boxSize
+        otherPlayers.forEach { it.pos.y = terrainHeight(it.pos.x, it.pos.z) - boxSize }
+
+        val cameraPos = player.pos.copy()
+        // move up (in line with player head)
+        cameraPos.y -= 75f
+        val lookAt = PVector.add(cameraPos, player.look)
+
+        camera(
+            // camera location
+            cameraPos.x, cameraPos.y, cameraPos.z,
+            // where it's pointing
+            lookAt.x, lookAt.y, lookAt.z,
+            // which way is up
+            0f, 1f, 0f
+        )
 
 
-//            noClip()
-            noStroke()
-            // draw bg
-            background(0f, 200f, 255f)
+        directionalLight(200f, 200f, 200f, 0.5f, 1f, 0.2f)
+        ambientLight(55f, 55f, 55f)
 
-            // world stuff goes here
-
-
-//            noFill()
-//            lights()f)
-
-            val boxSize = 30f
-            pushMatrix()
-
-            player.pos.y = terrainHeight(player.pos.x, player.pos.z) - boxSize
-            otherPlayers.forEach { it.pos.y = terrainHeight(it.pos.x, it.pos.z) - boxSize }
-
-            val cameraPos = player.pos.copy()
-            // move up (in line with player head)
-            cameraPos.y -= 75f
-            val lookAt = PVector.add(cameraPos, player.look)
-
-            camera(
-                // camera location
-                cameraPos.x, cameraPos.y, cameraPos.z,
-                // where it's pointing
-                lookAt.x, lookAt.y, lookAt.z,
-                // which way is up
-                0f, 1f, 0f
-            )
-
-            directionalLight(200f, 200f, 200f, 0.5f, 1f, 0.2f)
-            ambientLight(55f, 55f, 55f)
-
-            fun terrainVertex(x: Int, z: Int) {
-                val x = x * 30f
-                val z = z * 30f
-                vertex(x, terrainHeight(x, z) - boxSize, z)
-            }
+        fun terrainVertex(x: Int, z: Int) {
+            val x = x * 30f
+            val z = z * 30f
+            vertex(x, terrainHeight(x, z) - boxSize, z)
+        }
 
             // draw the world as a mesh of triangles
             (0..30).forEach { i ->
@@ -399,21 +345,22 @@ class GameManager(val app: App) {
                 }
             }
 
+            // draw other players
+            otherPlayers.forEach {
+                push()
+                translate(it.pos.x, it.pos.y - boxSize / 2f, it.pos.z)
+                rotateY(-it.rotation)
+                fill(color(255f, 255f, 0f))
+                box(35f)
+                pop()
+            }
+
             // draw projectiles
             bullets.forEach {
                 push()
                 translate(it.pos.x, it.pos.y, it.pos.z)
                 fill(color(255f, 0f, 255f))
                 sphere(10f)
-                pop()
-            }
-
-            // draw other players
-            otherPlayers.forEach {
-                push()
-                translate(it.pos.x, it.pos.y -  boxSize / 2f, it.pos.z)
-                fill(color(255f, 255f, 0f))
-                box(35f)
                 pop()
             }
 
@@ -447,15 +394,6 @@ class GameManager(val app: App) {
             popStyle()
         }
 
-    }
-
-    // the illusion of control
-    fun pause() {
-
-    }
-
-    fun resume() {
-        previous = System.currentTimeMillis()
     }
 
     // game loop driver fun
