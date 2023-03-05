@@ -196,11 +196,12 @@ class GameManager(val app: App) {
         val rng = app.random(1f)
 //        println(rng)
         when {
-            (rng<0.05f) -> {
+            (rng < 0.05f) -> {
                 controller.setAction(Action.LOOK_LEFT, true)
                 controller.setAction(Action.LOOK_RIGHT, false)
             }
-            (rng>0.95f) -> {
+
+            (rng > 0.95f) -> {
                 controller.setAction(Action.LOOK_RIGHT, true)
                 controller.setAction(Action.LOOK_LEFT, false)
             }
@@ -300,182 +301,193 @@ class GameManager(val app: App) {
             //        "\"rot\": ${player.rotation}, \"o_type\": \"PLAYER\"" +
             //        "}}}").toByteArray()
 
-            val tx_json = JSONObject(mapOf(
-                "events" to JSONArray(),
-                "objects" to mapOf(
-                    app.player_uuid to mapOf(
-                        "x" to player.pos.x,
-                        "y" to player.pos.y,
-                        "pos" to player.rotation
-                    )
+            // this is wack
+            val objectData = mutableMapOf<UUID, Map<String, Float>>()
+            objectData.putAll(bullets.map {
+                it.uuid to mapOf(
+                    "x" to it.pos.x,
+                    "y" to it.pos.y,
+                    "rot" to 1f,
+                    "o_type" to 1f
                 )
+            })
+            objectData.put(app.player_uuid, mapOf(
+                "x" to player.pos.x,
+                "y" to player.pos.y,
+                "rot" to player.rotation,
+                "o_type" to 0f
             ))
+            val tx_json = JSONObject(
+                mapOf(
+                    "events" to JSONArray(),
+                    "objects" to objectData)
+            )
 
-            val tx_buffer = tx_json.toString().toByteArray()
-            val tx_packet = DatagramPacket(tx_buffer, tx_buffer.size, InetAddress.getByName(app.HOST), app.server_udp_port)
-            app.tx_udp_socket.send(tx_packet)
-            // rx
-            try {
-                val rx_buffer = ByteArray(4096)
-                val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
-                app.server_udp_socket.receive(rx_packet)
-                val rx = JSONObject(String(rx_packet.data))
-                // TODO: update other players + bullets positions
-                // TODO: handle events (create bullets)
+        val tx_buffer = tx_json.toString().toByteArray()
+        val tx_packet = DatagramPacket(tx_buffer, tx_buffer.size, InetAddress.getByName(app.HOST), app.server_udp_port)
+        app.tx_udp_socket.send(tx_packet)
+        // rx
+        try {
+            val rx_buffer = ByteArray(4096)
+            val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
+            app.server_udp_socket.receive(rx_packet)
+            val rx = JSONObject(String(rx_packet.data))
+            // TODO: update other players + bullets positions
+            // TODO: handle events (create bullets)
 
-            } catch (_: SocketTimeoutException) {
-            }
+        } catch (_: SocketTimeoutException) {
         }
-
-
     }
 
-    val noiseCoeff = 0.01f
-    fun terrainHeight(x: Float, y: Float) = -100 * app.noise(x * noiseCoeff, y * noiseCoeff)
+
+}
+
+val noiseCoeff = 0.01f
+fun terrainHeight(x: Float, y: Float) = -100 * app.noise(x * noiseCoeff, y * noiseCoeff)
 
 
-    // draw all the things
-    fun render() {
+// draw all the things
+fun render() {
 
-        with(app.gameView) {
+    with(app.gameView) {
 
-            beginDraw()
+        beginDraw()
 
 
 //            noClip()
-            noStroke()
-            // draw bg
-            background(0f, 200f, 255f)
+        noStroke()
+        // draw bg
+        background(0f, 200f, 255f)
 
-            // world stuff goes here
+        // world stuff goes here
 
 
 //            noFill()
 //            lights()f)
 
-            val boxSize = 30f
-            pushMatrix()
+        val boxSize = 30f
+        pushMatrix()
 
-            player.pos.y = terrainHeight(player.pos.x, player.pos.z) - boxSize
-            otherPlayers.forEach { it.pos.y = terrainHeight(it.pos.x, it.pos.z) - boxSize }
+        player.pos.y = terrainHeight(player.pos.x, player.pos.z) - boxSize
+        otherPlayers.forEach { it.pos.y = terrainHeight(it.pos.x, it.pos.z) - boxSize }
 
-            val cameraPos = player.pos.copy()
-            // move up (in line with player head)
-            cameraPos.y -= 75f
-            val lookAt = PVector.add(cameraPos, player.look)
+        val cameraPos = player.pos.copy()
+        // move up (in line with player head)
+        cameraPos.y -= 75f
+        val lookAt = PVector.add(cameraPos, player.look)
 
-            camera(
-                // camera location
-                cameraPos.x, cameraPos.y, cameraPos.z,
-                // where it's pointing
-                lookAt.x, lookAt.y, lookAt.z,
-                // which way is up
-                0f, 1f, 0f
-            )
+        camera(
+            // camera location
+            cameraPos.x, cameraPos.y, cameraPos.z,
+            // where it's pointing
+            lookAt.x, lookAt.y, lookAt.z,
+            // which way is up
+            0f, 1f, 0f
+        )
 
-            directionalLight(200f, 200f, 200f, 0.5f, 1f, 0.2f)
-            ambientLight(55f, 55f, 55f)
+        directionalLight(200f, 200f, 200f, 0.5f, 1f, 0.2f)
+        ambientLight(55f, 55f, 55f)
 
-            fun terrainVertex(x: Int, z: Int) {
-                val x = x * 30f
-                val z = z * 30f
-                vertex(x, terrainHeight(x, z) - boxSize, z)
-            }
-
-            // draw the world as a mesh of triangles
-            (0..30).forEach { i ->
-                (0..30).forEach { j ->
-                    beginShape()
-                    terrainVertex(i, j)
-                    terrainVertex(i + 1, j)
-                    terrainVertex(i, j + 1)
-                    endShape()
-
-                    beginShape()
-                    terrainVertex(i + 1, j)
-                    terrainVertex(i + 1, j + 1)
-                    terrainVertex(i, j + 1)
-                    endShape()
-                }
-            }
-
-            // draw projectiles
-            bullets.forEach {
-                push()
-                translate(it.pos.x, it.pos.y, it.pos.z)
-                fill(color(255f, 0f, 255f))
-                sphere(10f)
-                pop()
-            }
-
-            // draw other players
-            otherPlayers.forEach {
-                push()
-                translate(it.pos.x, it.pos.y -  boxSize / 2f, it.pos.z)
-                fill(color(255f, 255f, 0f))
-                box(35f)
-                pop()
-            }
-
-            popMatrix()
-
-            endDraw()
+        fun terrainVertex(x: Int, z: Int) {
+            val x = x * 30f
+            val z = z * 30f
+            vertex(x, terrainHeight(x, z) - boxSize, z)
         }
 
-        with(app.hudView) {
-            beginDraw()
+        // draw the world as a mesh of triangles
+        (0..30).forEach { i ->
+            (0..30).forEach { j ->
+                beginShape()
+                terrainVertex(i, j)
+                terrainVertex(i + 1, j)
+                terrainVertex(i, j + 1)
+                endShape()
 
-            // hud stuff goes here
-            noStroke()
-            rect(0f, height * .9f, width.toFloat(), height * .1f)
-            // xhair
-            stroke(40)
-            line(width / 2f, 0f, width / 2f, height.toFloat())
-            line(0f, height / 2f, width.toFloat(), height / 2f)
-
-            text("FPS ${app.frameRate}", 10f, 90f)
-
-            endDraw()
+                beginShape()
+                terrainVertex(i + 1, j)
+                terrainVertex(i + 1, j + 1)
+                terrainVertex(i, j + 1)
+                endShape()
+            }
         }
 
-        with(app) {
-            image(gameView, 0f, 0f)
-
-            pushStyle()
-            tint(255f, 255f, 255f, 100f)
-            image(hudView, 0f, 0f)
-            popStyle()
+        // draw projectiles
+        bullets.forEach {
+            push()
+            translate(it.pos.x, it.pos.y, it.pos.z)
+            fill(color(255f, 0f, 255f))
+            sphere(10f)
+            pop()
         }
 
-    }
-
-    // the illusion of control
-    fun pause() {
-
-    }
-
-    fun resume() {
-        previous = System.currentTimeMillis()
-    }
-
-    // game loop driver fun
-    fun draw() {
-
-        val current: Long = System.currentTimeMillis()
-        val dt: Long = current - previous
-        previous = current
-        lag += dt
-
-        // processInput()
-        while (lag >= MS_PER_UPDATE) {
-            // update model here
-            update(dt)
-            lag -= MS_PER_UPDATE
+        // draw other players
+        otherPlayers.forEach {
+            push()
+            translate(it.pos.x, it.pos.y - boxSize / 2f, it.pos.z)
+            fill(color(255f, 255f, 0f))
+            box(35f)
+            pop()
         }
 
-        // render
-        render()
+        popMatrix()
+
+        endDraw()
     }
+
+    with(app.hudView) {
+        beginDraw()
+
+        // hud stuff goes here
+        noStroke()
+        rect(0f, height * .9f, width.toFloat(), height * .1f)
+        // xhair
+        stroke(40)
+        line(width / 2f, 0f, width / 2f, height.toFloat())
+        line(0f, height / 2f, width.toFloat(), height / 2f)
+
+        text("FPS ${app.frameRate}", 10f, 90f)
+
+        endDraw()
+    }
+
+    with(app) {
+        image(gameView, 0f, 0f)
+
+        pushStyle()
+        tint(255f, 255f, 255f, 100f)
+        image(hudView, 0f, 0f)
+        popStyle()
+    }
+
+}
+
+// the illusion of control
+fun pause() {
+
+}
+
+fun resume() {
+    previous = System.currentTimeMillis()
+}
+
+// game loop driver fun
+fun draw() {
+
+    val current: Long = System.currentTimeMillis()
+    val dt: Long = current - previous
+    previous = current
+    lag += dt
+
+    // processInput()
+    while (lag >= MS_PER_UPDATE) {
+        // update model here
+        update(dt)
+        lag -= MS_PER_UPDATE
+    }
+
+    // render
+    render()
+}
 
 }
 

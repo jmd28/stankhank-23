@@ -43,8 +43,8 @@ class Player:
 
 
 class ObjectType(Enum):
-    PLAYER = "PLAYER"
-    BULLET = "BULLET"
+    PLAYER = 0
+    BULLET = 1
 
 
 class EventTypes(Enum):
@@ -238,7 +238,6 @@ def thread_new_room(room_id):
 
     while True:
         events = []
-        
         if time.time_ns() > timeSinceLastCollision + 5e6:  # 5 ,ms
             timeSinceLastCollision = time.time_ns()
             t = threading.Thread(target=handleCollisions, args=(objects, q_service))
@@ -261,6 +260,7 @@ def thread_new_room(room_id):
         start_t = time.time_ns()  # ns
         if time.time_ns() < start_t + PACKET_COLLECT_DELAY_NS:
             packet_data = rx_json_udp(rx_udp_socket)
+            print(packet_data)
             # contains objects [], events []
             # update objects via uuid with given objects
             rx_os = packet_data["objects"]
@@ -279,7 +279,6 @@ def thread_new_room(room_id):
                         # event will also be sent to players such that they can spawn the bullet
 
         # send updated state to all players
-        print(state)
         state['events'] = events
         for player in players.values():
             tx_json_udp(tx_udp_socket, player.ip_addr, player.udp_port, state)

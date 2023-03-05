@@ -36,7 +36,7 @@ class App : PApplet() {
     val HOST_TCP_PORT = 21450
     val ROOM_ID = 1337
     lateinit var server_tcp_socket: Socket
-    lateinit var player_uuid: String
+    lateinit var player_uuid: UUID
 
     // initialise end wave screen handler
 //    val endWave = EndWave(this)
@@ -80,7 +80,7 @@ class App : PApplet() {
             }
             val json_msg = org.json.JSONObject(msg)
             server_udp_port = json_msg["server_port"] as Int
-            player_uuid = json_msg["player"] as String
+            player_uuid = UUID.fromString(json_msg["player"] as String)
             println(player_uuid)
 
             // open local udp socket and connect to remove server udp port
