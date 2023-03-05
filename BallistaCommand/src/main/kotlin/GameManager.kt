@@ -20,13 +20,10 @@ class GameManager(val app: App) {
     // we will divide the screen into vertical strips to aid placement
     var gridSize = 0f
 
-    var gameObjects = mutableListOf<GameObject>()
-
     val booletPool = ObjectPool(app) {
         Boolet(selfGenerated = true)
     }
 
-    // TODO: use
     var uuidToObject = mutableMapOf<UUID, GameObject>()
 
     val bullets = mutableListOf<Boolet>()
@@ -454,6 +451,15 @@ class GameManager(val app: App) {
             // hud stuff goes here
             noStroke()
             rect(0f, height * .9f, width.toFloat(), height * .1f)
+            pushStyle()
+            fill(color(255f,0f,0f))
+//            repeat (player.lives) {
+                rect(20f, height * .9f, 60f, 60f)
+//            }
+            popStyle()
+            rect(0f, height * .9f, width.toFloat(), height * .1f)
+
+
             // xhair
             stroke(40)
             line(width / 2f, 0f, width / 2f, height.toFloat())

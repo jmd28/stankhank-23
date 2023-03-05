@@ -27,7 +27,7 @@ class App : PApplet() {
 
     // multiplayer doodads
 
-    val ENABLE_MULTIPLAYER = true
+    val ENABLE_MULTIPLAYER = false
     var server_udp_port: Int = -1
     val server_udp_socket = DatagramSocket()
     val tx_udp_socket = DatagramSocket()
@@ -54,7 +54,7 @@ class App : PApplet() {
         game.setup()
 
         // HUD layer
-        hudView = createGraphics(width, height, P2D)
+        hudView = createGraphics(width, height)
         // Game view
         gameView = createGraphics(width, height, P3D)
     }
