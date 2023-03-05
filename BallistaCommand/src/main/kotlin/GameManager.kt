@@ -31,7 +31,7 @@ class GameManager(val app: App) {
     val bullets = mutableListOf<Boolet>()
     val otherPlayers = mutableListOf<Player>()
 
-    val TIME_BETWEEN_PACKET_UPDATE = 100
+    val TIME_BETWEEN_PACKET_UPDATE = 1
     var timeLastPacket = System.currentTimeMillis()
 
     // run this at the beginning of the game
@@ -40,11 +40,11 @@ class GameManager(val app: App) {
         // set some dimensions
         this.gridSize = app.displayWidth / 9f
 
-        // create some players
-        repeat(5) {
-            val pos = PVector(app.random(1f), app.random(1f)).mult(900f)
-            otherPlayers.add(Player(selfGenerated=true, pos = PVector(pos.x, terrainHeight(pos.x, pos.y), pos.y)))
-        }
+       // // create some players
+       // repeat(5) {
+       //     val pos = PVector(app.random(1f), app.random(1f)).mult(900f)
+       //     otherPlayers.add(Player(selfGenerated=true, pos = PVector(pos.x, terrainHeight(pos.x, pos.y), pos.y)))
+       // }
 
         app.textFont(app.createFont("Courier 10 Pitch", 28f))
 
@@ -452,12 +452,17 @@ class GameManager(val app: App) {
             app.server_tcp_socket.outputStream.write(("{\"port\":$client_udp_port}").toByteArray())
 
             // read initial state and set players
+            while (setup) {
+
             try {
                 val rx_buffer = ByteArray(4096)
                 val rx_packet = DatagramPacket(rx_buffer, rx_buffer.size)
                 app.server_udp_socket.receive(rx_packet)
                 val rx = JSONObject(String(rx_packet.data))
 
+                if (!rx.isEmpty) {
+                   setup = false
+                }
                 val os: JSONObject = rx["objects"] as JSONObject
                 val iter: Iterator<String> = os.keys()
                 while (iter.hasNext()) {
@@ -484,7 +489,6 @@ class GameManager(val app: App) {
                         )
                         otherPlayers.add(p)
                         uuidToObject[key] = p
-
                     }
                 }
 
@@ -493,7 +497,7 @@ class GameManager(val app: App) {
 
             } catch (_: SocketTimeoutException) {
             }
-            setup = false
+            }
         } else {
 
             val current: Long = System.currentTimeMillis()
