@@ -223,7 +223,9 @@ def thread_new_room(room_id):
     while True:
         if time.time_ns() > timeSinceLastCollision + 5e6: # 5 ,ms
             timeSinceLastCollision = time.time_ns()
-            
+            # TODO: connect to service!
+            # TODO: maybe do in
+
         # read in packets every ms
         # every 5ms, compute and resolve collisions
         PACKET_COLLECT_DELAY_NS = 1e6
