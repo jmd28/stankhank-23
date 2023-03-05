@@ -33,6 +33,10 @@ PLAYER_WIDTH = 10
 BULLET_HEIGHT = 5
 BULLET_WIDTH = 5
 
+CONFIDENCE_LIMIT = 0.7
+
+COLLISION_SERVICE = 'http://localhost:5000/'
+
 
 # each player has a tcp socket, udp port, ip address
 class Player:
@@ -224,18 +228,54 @@ def thread_new_room(room_id):
     import queue
     q_service = queue.Queue()
 
+
     def handleCollisions(objects, q):
         import cv2
+        import numpy as np
+        import requests
+        
+        # Create a blank image
+        img = np.ones((GAME_HEIGHT, GAME_WIDTH, 3), np.uint8) * 255
+        for obj in objects.values():
+            # Define the box parameters
+            x_position = obj["x"]
+            y_position = obj["y"]
+            width = obj["w"]
+            height = obj["h"]
 
-        # draw boxes in opencv2
-        # send image to http url
-        # get response
+            # draw in cv2
+            cv2.rectangle(img, (x_position, y_position), (x_position+width, y_position+height), (0, 0, 0), 2)
+        
+        # encode into byte array
+        success, encoded_image = cv2.imencode('.jpg', img)
+        byte_array = encoded_image.tobytes()
 
-        # calculate collisions
-        # add colliding objects to q [[uuid, uuid, uuid]]
-        time.sleep(0.2)
-        q.put("DUMMY")
+
+        headers = {"Content-Type": "application/octet-stream"}
+
+        response = requests.post(COLLISION_SERVICE + 'api/collisions', data=byte_array, headers=headers)
+        if response.status_code == 200:
+            # [{'xmin': 197.58145141601562, 'ymin': 148.6814422607422, 'xmax': 322.0530090332031, 'ymax': 239.489013671875, 'confidence': 0.9486695528030396, 'class': 0, 'name': 'collision'}]
+            data = response.json()
+            data = data["result"]
+            colliding_keys = []
+            for d in data:
+                if d["confidence"] < CONFIDENCE_LIMIT:
+                    continue
+                curr_box_keys = []
+                for key in objects.keys():
+                    obj = objects[key]
+                    if d["xmin"] <= obj["x"] and d["xmax"] >= obj["x"]+obj["w"] and d["ymin"] <= obj["y"] and d["ymax"] >= obj["y"] + obj["h"]:
+                        curr_box_keys.append(key)
+                colliding_keys.append(curr_box_keys)
+
+            # add colliding objects to q [[uuid, uuid, uuid]]
+            if len(colliding_keys) > 0:
+                q.put(colliding_keys)
+        
         return
+
+
 
     while True:
         new_events = []
