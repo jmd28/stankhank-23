@@ -234,8 +234,8 @@ class GameManager(val app: App) {
         bullets.forEach {
             if (it.selfGenerated) {
                 it.pos.add(it.vel)
-                it.pos.y = terrainHeight(it.pos.x, it.pos.z) - 40f
             }
+            it.pos.y = terrainHeight(it.pos.x, it.pos.z) - 40f
             // check for yeet
             if (System.currentTimeMillis() > it.expiresAt) {
                 booletPool.returnObject(it)
