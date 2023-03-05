@@ -334,11 +334,14 @@ class GameManager(val app: App) {
                     val rotation = value["rot"].toString().toFloat()
 
                     val p: GameObject = uuidToObject[key] ?: continue
+                    println(p)
+                    println("----")
                     if (!p.selfGenerated) {
                         p.pos.x = x
                         p.pos.z = y
                         p.rotation = rotation
                     }
+                    println(p)
                 }
 
                 // TODO: update other players + bullets positions
