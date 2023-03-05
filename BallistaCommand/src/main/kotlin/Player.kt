@@ -1,4 +1,5 @@
 import processing.core.PVector
+import java.util.UUID
 
 // these behave badly because they're const
 // should probs be static val instead
@@ -10,9 +11,10 @@ data class Player(
     // where the thing is looking
     var rotation: Float = 0f,
     val controller: Input = Input(),
+    val uuid: UUID = UUID.randomUUID(),
     var lives: Int = MAX_LIVES,
     // time after which next boolet allowed to fire
-    var cooldownEndsAt: Long = 0
+    var cooldownEndsAt: Long = 0,
 
 ): GameObject {
 
