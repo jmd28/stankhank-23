@@ -4,6 +4,7 @@ data class Player(
     override val pos: PVector,
     // where the thing is looking
     var rotation: Float = 0f,
+    val controller: Input = Input(),
 
 ): GameObject {
 

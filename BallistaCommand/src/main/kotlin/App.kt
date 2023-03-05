@@ -88,6 +88,7 @@ class App : PApplet() {
             // send our port to server
             server_tcp_socket.outputStream.write(("{\"port\":$client_udp_port}").toByteArray())
         }
+
     }
 
     override fun settings() {
